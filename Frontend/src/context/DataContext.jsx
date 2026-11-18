@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react'
 import { useAuth } from './AuthContext.jsx'
 import { ROLES, ROLE_CODES, getRoleCode, getRoleLabel, normalizeRoleKey } from './authConstants.js'
 import { apiRequest, getToken } from '../services/api.js'
@@ -7,6 +7,30 @@ import { apiRequest, getToken } from '../services/api.js'
 const DataContext = createContext(null)
 
 const SESSION_MESSAGES_KEY = 'giro_workspace_messages_v1'
+const WORKSPACE_CONFIG_KEY = 'giro_workspace_config_v1'
+
+const DEFAULT_WORKSPACE_CONFIG = {
+  projectName: 'Plataforma de Produto',
+  teamName: 'Equipa Principal',
+  visibility: 'Privada · Apenas membros',
+  timezone: 'Europa/Lisboa (GMT+0)',
+  description: 'Equipa responsável pela evolução contínua, priorização e entregas do produto.',
+}
+
+function loadWorkspaceConfig() {
+  try {
+    const raw = localStorage.getItem(WORKSPACE_CONFIG_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') {
+        return { ...DEFAULT_WORKSPACE_CONFIG, ...parsed }
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return DEFAULT_WORKSPACE_CONFIG
+}
 
 const PEDIDO_STATUS = {
   SUBMETIDO: 'pending',
@@ -53,496 +77,31 @@ const ROLE_SCOPE_MAP = {
   ADMIN: 'Gestão de contas RBAC, segurança e auditoria do sistema',
 }
 
-const DEMO_USERS = [
-  {
-    id: 'usr-po-01',
-    name: 'Sofia Costa',
-    email: 'sofia.costa@giro.com',
-    role: ROLES.PRODUCT_OWNER,
-    roleCode: ROLE_CODES.PRODUCT_OWNER,
-    active: true,
-    scope: ROLE_SCOPE_MAP.PRODUCT_OWNER,
-  },
-  {
-    id: 'usr-sm-01',
-    name: 'Inês Martins',
-    email: 'ines.martins@giro.com',
-    role: ROLES.SCRUM_MASTER,
-    roleCode: ROLE_CODES.SCRUM_MASTER,
-    active: true,
-    scope: ROLE_SCOPE_MAP.SCRUM_MASTER,
-  },
-  {
-    id: 'usr-dev-01',
-    name: 'Rafael Silva',
-    email: 'rafael.silva@giro.com',
-    role: ROLES.DEVELOPER,
-    roleCode: ROLE_CODES.DEVELOPER,
-    active: true,
-    scope: ROLE_SCOPE_MAP.DEVELOPER,
-  },
-  {
-    id: 'usr-cli-01',
-    name: 'Miguel Alves',
-    email: 'miguel.alves@cliente.com',
-    role: ROLES.CLIENT,
-    roleCode: ROLE_CODES.CLIENT,
-    active: true,
-    scope: ROLE_SCOPE_MAP.CLIENT,
-  },
-  {
-    id: 'usr-adm-01',
-    name: 'Diogo Ferreira',
-    email: 'diogo.ferreira@giro.com',
-    role: ROLES.ADMIN,
-    roleCode: ROLE_CODES.ADMIN,
-    active: true,
-    scope: ROLE_SCOPE_MAP.ADMIN,
-  },
-]
-
-const DEMO_PEDIDOS = [
-  {
-    id: 'PED-01',
-    title: 'Filtros avançados por estado e categoria na listagem de pedidos',
-    description: 'Permitir combinar filtros de categoria (Bug, Melhoria, Nova Funcionalidade) e estado de ciclo de vida com resposta rápida.',
-    category: 'MELHORIA',
-    status: 'development',
-    backendStatus: 'EM_DESENVOLVIMENTO',
-    effort: 3,
-    impact: 9,
-    voteCount: 24,
-    votedBy: ['usr-po-01', 'usr-cli-01'],
-    tags: ['ux', 'pesquisa', 'filtros'],
-    createdAt: '2026-10-12T09:30:00Z',
-    author: { name: 'Miguel Alves', role: 'P04', avatar: 'MA' },
-    linkedStoryId: 'US-31',
-    aiRecommendation: 'Quick Win recomendado para Sprint 12',
-    aiConfidence: '92% confiança (PII sanitizado)',
-    comments: [
-      {
-        id: 'cmt-01',
-        content: 'Seria muito útil guardar o último filtro aplicado na sessão.',
-        createdAt: '2026-10-13T11:15:00Z',
-        authorName: 'Miguel Alves',
-        authorRole: 'P04',
-      },
-      {
-        id: 'cmt-02',
-        content: 'Critérios validados e incluídos na US-31 para a Sprint 12.',
-        createdAt: '2026-10-14T15:00:00Z',
-        authorName: 'Sofia Costa',
-        authorRole: 'P01',
-      },
-    ],
-    history: [],
-  },
-  {
-    id: 'PED-02',
-    title: 'Exportação de relatórios e matriz de rastreabilidade em CSV e PDF',
-    description: 'Disponibilizar exportação dos indicadores de Sprint e matriz RF/US/Testes para partilha em reuniões de revisão.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'complete',
-    backendStatus: 'CONCLUIDO',
-    effort: 2,
-    impact: 8,
-    voteCount: 19,
-    votedBy: ['usr-po-01', 'usr-sm-01'],
-    tags: ['relatorios', 'csv', 'pdf'],
-    createdAt: '2026-10-08T14:20:00Z',
-    author: { name: 'Inês Martins', role: 'P02', avatar: 'IM' },
-    linkedStoryId: 'US-24',
-    aiRecommendation: 'Alto retorno e baixo esforço (Quick Win)',
-    aiConfidence: '95% confiança (PII sanitizado)',
-    comments: [],
-    history: [],
-  },
-  {
-    id: 'PED-03',
-    title: 'Garantir unicidade de voto por utilizador (RNF-SEG-03)',
-    description: 'Assegurar que cada utilizador autenticado apenas consegue manter 1 voto ativo por pedido com alternância imediata.',
-    category: 'MELHORIA',
-    status: 'development',
-    backendStatus: 'EM_DESENVOLVIMENTO',
-    effort: 3,
-    impact: 10,
-    voteCount: 31,
-    votedBy: ['usr-adm-01', 'usr-cli-01'],
-    tags: ['seguranca', 'votacao', 'rnf-seg-03'],
-    createdAt: '2026-10-10T10:00:00Z',
-    author: { name: 'Diogo Ferreira', role: 'P05', avatar: 'DF' },
-    linkedStoryId: 'US-42',
-    aiRecommendation: 'Prioridade crítica de segurança',
-    aiConfidence: '97% confiança (PII sanitizado)',
-    comments: [],
-    history: [],
-  },
-  {
-    id: 'PED-04',
-    title: 'Integração bidirecional de dependências acíclicas no Roadmap',
-    description: 'Detetar automaticamente ciclos A -> B -> A no grafo de dependências entre User Stories antes da gravação.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'approved',
-    backendStatus: 'APROVADO',
-    effort: 5,
-    impact: 9,
-    voteCount: 15,
-    votedBy: ['usr-sm-01'],
-    tags: ['roadmap', 'dependencias'],
-    createdAt: '2026-10-14T16:45:00Z',
-    author: { name: 'Inês Martins', role: 'P02', avatar: 'IM' },
-    linkedStoryId: 'US-45',
-    aiRecommendation: 'Aposta estratégica para Q4',
-    aiConfidence: '88% confiança (PII sanitizado)',
-    comments: [],
-    history: [],
-  },
-  {
-    id: 'PED-05',
-    title: 'Sugestão automática de pedidos semelhantes ao escrever o título',
-    description: 'Pesquisa por trigramas em tempo real após 3 caracteres para evitar duplicados durante a submissão de novos pedidos.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'analysis',
-    backendStatus: 'EM_ANALISE',
-    effort: 2,
-    impact: 8,
-    voteCount: 14,
-    votedBy: ['usr-cli-01'],
-    tags: ['pesquisa', 'duplicados', 'trigramas'],
-    createdAt: '2026-10-15T11:10:00Z',
-    author: { name: 'Miguel Alves', role: 'P04', avatar: 'MA' },
-    linkedStoryId: null,
-    aiRecommendation: 'Quick Win sugerido para triagem',
-    aiConfidence: '90% confiança (PII sanitizado)',
-    comments: [],
-    history: [],
-  },
-  {
-    id: 'PED-06',
-    title: 'Corrigir alinhamento de badges em ecrãs móveis de 375px',
-    description: 'Algumas etiquetas de prioridade quebram linha de forma irregular em ecrãs compactos.',
-    category: 'BUG',
-    status: 'pending',
-    backendStatus: 'SUBMETIDO',
-    effort: 1,
-    impact: 4,
-    voteCount: 6,
-    votedBy: [],
-    tags: ['ui', 'responsivo'],
-    createdAt: '2026-10-16T08:50:00Z',
-    author: { name: 'Rafael Silva', role: 'P03', avatar: 'RS' },
-    linkedStoryId: null,
-    aiRecommendation: 'Tarefa de preenchimento de baixo esforço',
-    aiConfidence: '84% confiança (PII sanitizado)',
-    comments: [],
-    history: [],
-  },
-]
-
-const DEMO_SPRINTS = [
-  {
-    idSprint: 'sprint-12',
-    numeroSprint: 12,
-    dataInicio: '2026-10-12T00:00:00Z',
-    dataFim: '2026-10-23T23:59:59Z',
-    capacidadeMaxima: 28,
-    estado: 'ATIVO',
-  },
-  {
-    idSprint: 'sprint-13',
-    numeroSprint: 13,
-    dataInicio: '2026-10-26T00:00:00Z',
-    dataFim: '2026-11-06T23:59:59Z',
-    capacidadeMaxima: 28,
-    estado: 'PLANEADO',
-  },
-]
-
-const DEMO_STORIES = [
-  {
-    id: 'US-24',
-    backendId: 'us-24-uuid',
-    title: 'Exportar relatórios de Sprint e Rastreabilidade em CSV/PDF',
-    description: 'Como Scrum Master, quero exportar indicadores e matriz de rastreabilidade, para partilhar progresso nas cerimónias.',
-    acceptanceCriteria: [
-      'Gerar ficheiro CSV com colunas RF, US, Pedido e Estado',
-      'Apresentar confirmação visual imediata após exportação',
-    ],
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'done',
-    backendStatus: 'CONCLUIDO',
-    priority: 'Alta',
-    points: 5,
-    effort: 4,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Programador' },
-    impediment: false,
-    linkedPedidoId: 'PED-02',
-    pedidoCode: 'PED-02',
-    epic: 'EP03: Analítica & Exportação',
-  },
-  {
-    id: 'US-31',
-    backendId: 'us-31-uuid',
-    title: 'Filtrar pedidos por categoria e estado de ciclo de vida',
-    description: 'Como Product Owner, quero filtrar pedidos por categoria e estado, para acelerar a triagem do backlog.',
-    acceptanceCriteria: [
-      'Suportar seleção combinada de categoria e estado',
-      'Atualizar contagem de resultados em menos de 200 ms',
-    ],
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'in_progress',
-    backendStatus: 'EM_PROGRESSO',
-    priority: 'Alta',
-    points: 5,
-    effort: 3,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Programador' },
-    impediment: 'Aguardar validação final dos filtros de trigramas',
-    linkedPedidoId: 'PED-01',
-    pedidoCode: 'PED-01',
-    epic: 'EP01: Gestão de Pedidos',
-  },
-  {
-    id: 'US-42',
-    backendId: 'us-42-uuid',
-    title: 'Aplicar restrição de voto único por utilizador e pedido (RNF-SEG-03)',
-    description: 'Como Administrador do Sistema, quero garantir unicidade de voto na BD e interface, para assegurar transparência na votação.',
-    acceptanceCriteria: [
-      'Restrição UNIQUE (id_utilizador, id_pedido) ativa',
-      'Permitir alternar (adicionar/retirar) apenas o próprio voto',
-    ],
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'review',
-    backendStatus: 'EM_REVISAO',
-    priority: 'Urgente',
-    points: 8,
-    effort: 6,
-    assignee: { name: 'Diogo Ferreira', initials: 'DF', role: 'Administrador do Sistema' },
-    impediment: 'Revisão final de testes de concorrência pendente',
-    linkedPedidoId: 'PED-03',
-    pedidoCode: 'PED-03',
-    epic: 'EP04: Segurança & RBAC',
-  },
-  {
-    id: 'US-44',
-    backendId: 'us-44-uuid',
-    title: 'Workspace colaborativo da equipa com canais de Sprint',
-    description: 'Como Programador, quero comunicar bloqueios e decisões por canal no workspace, para manter alinhamento com a equipa.',
-    acceptanceCriteria: [
-      'Canais #geral, #sprint-planning e #bloqueios ativos',
-      'Visualizar carga de tarefas por membro da equipa',
-    ],
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'todo',
-    backendStatus: 'TODO',
-    priority: 'Média',
-    points: 6,
-    effort: 0,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    impediment: false,
-    linkedPedidoId: 'PED-01',
-    pedidoCode: 'PED-01',
-    epic: 'EP02: Colaboração & Rituais',
-  },
-  {
-    id: 'US-45',
-    backendId: 'us-45-uuid',
-    title: 'Validação acíclica de dependências entre User Stories no Roadmap',
-    description: 'Como Scrum Master, quero impedir dependências circulares no Roadmap, para garantir planeamento consistente.',
-    acceptanceCriteria: [
-      'Detetar ciclos antes da persistência com erro HTTP 409',
-      'Renderizar dependências no painel de release',
-    ],
-    target: 'Backlog do produto',
-    sprint: null,
-    status: 'todo',
-    backendStatus: 'BACKLOG',
-    priority: 'Alta',
-    points: 5,
-    effort: 0,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    impediment: false,
-    linkedPedidoId: 'PED-04',
-    pedidoCode: 'PED-04',
-    epic: 'EP05: Roadmap & Releases',
-  },
-]
-
-const DEMO_ROADMAP = [
-  {
-    idRelease: 'rel-2026-q3',
-    tituloRelease: 'Release 2026.Q3',
-    descricao: 'Fundação de pedidos, votação única e autenticação JWT',
-    dataInicio: '2026-07-01T00:00:00Z',
-    dataFim: '2026-09-30T23:59:59Z',
-    marcoCritico: true,
-    userStories: [
-      { codigoUs: 'US-24', titulo: 'Exportação CSV/PDF', estadoTecnico: 'CONCLUIDO' },
-    ],
-  },
-  {
-    idRelease: 'rel-2026-q4',
-    tituloRelease: 'Release 2026.Q4',
-    descricao: 'Priorização assistida por IA, Sprint Kanban e Matriz de Rastreabilidade',
-    dataInicio: '2026-10-01T00:00:00Z',
-    dataFim: '2026-12-20T23:59:59Z',
-    marcoCritico: true,
-    userStories: [
-      { codigoUs: 'US-31', titulo: 'Filtros avançados de pedidos', estadoTecnico: 'EM_PROGRESSO' },
-      { codigoUs: 'US-42', titulo: 'Unicidade de voto RNF-SEG-03', estadoTecnico: 'EM_REVISAO' },
-      { codigoUs: 'US-44', titulo: 'Team Workspace colaborativo', estadoTecnico: 'TODO' },
-    ],
-  },
-  {
-    idRelease: 'rel-2027-q1',
-    tituloRelease: 'Release 2027.Q1',
-    descricao: 'Automação de dependências no Roadmap e integrações externas',
-    dataInicio: '2027-01-05T00:00:00Z',
-    dataFim: '2027-03-31T23:59:59Z',
-    marcoCritico: false,
-    userStories: [
-      { codigoUs: 'US-45', titulo: 'Validação acíclica de dependências', estadoTecnico: 'BACKLOG' },
-    ],
-  },
-]
-
-const DEMO_NOTIFICATIONS = [
-  {
-    id: 'notif-01',
-    title: 'Atualização de estado em PED-01',
-    description: 'Sofia Costa aprovou PED-01 e associou à User Story US-31 no Sprint 12.',
-    category: 'decisoes',
-    read: false,
-    createdAt: '2026-10-16T10:15:00Z',
-    timeGroup: 'HOJE',
-    timestamp: 'Há 25 min',
-    refCode: 'PED-01 · US-31',
-    assignee: 'Rafael Silva',
-    storyId: 'US-31',
-    author: { name: 'Sofia Costa', initials: 'SC' },
-  },
-  {
-    id: 'notif-02',
-    title: 'Bloqueio assinalado em US-42',
-    description: 'Diogo Ferreira sinalizou revisão pendente de testes de concorrência para RNF-SEG-03.',
-    category: 'bloqueios',
-    read: false,
-    createdAt: '2026-10-16T09:05:00Z',
-    timeGroup: 'HOJE',
-    timestamp: 'Há 1h',
-    refCode: 'US-42 · RNF-SEG-03',
-    assignee: 'Diogo Ferreira',
-    storyId: 'US-42',
-    author: { name: 'Diogo Ferreira', initials: 'DF' },
-  },
-  {
-    id: 'notif-03',
-    title: 'Menção no canal #sprint-planning',
-    description: 'Inês Martins mencionou Rafael Silva para confirmar capacidade da Sprint 12.',
-    category: 'mencoes',
-    read: true,
-    createdAt: '2026-10-15T17:30:00Z',
-    timeGroup: 'ONTEM',
-    timestamp: 'Ontem às 17:30',
-    refCode: 'Sprint 12',
-    assignee: 'Rafael Silva',
-    storyId: 'US-44',
-    author: { name: 'Inês Martins', initials: 'IM' },
-  },
-]
-
-const DEMO_LOGS = [
-  {
-    id: 'log-01',
-    action: 'ATUALIZACAO_PERMISSOES',
-    resource: 'Utilizador/usr-dev-01',
-    details: { papel: 'P03', label: 'Programador', ativo: true },
-    timestamp: '2026-10-16T08:40:00Z',
-    userId: 'usr-adm-01',
-    userName: 'Diogo Ferreira',
-    userRole: 'P05',
-  },
-  {
-    id: 'log-02',
-    action: 'ALTERACAO_ESTADO',
-    resource: 'Pedido/PED-01',
-    details: { de: 'APROVADO', para: 'EM_DESENVOLVIMENTO' },
-    timestamp: '2026-10-16T09:20:00Z',
-    userId: 'usr-po-01',
-    userName: 'Sofia Costa',
-    userRole: 'P01',
-  },
-  {
-    id: 'log-03',
-    action: 'PRIORIZACAO_IA',
-    resource: 'Pedido/PED-05',
-    details: { piiSanitized: true, quadrante: 'quick_wins' },
-    timestamp: '2026-10-16T10:05:00Z',
-    userId: 'usr-po-01',
-    userName: 'Sofia Costa',
-    userRole: 'P01',
-  },
-]
-
-const DEMO_CHANNELS = [
+const WORKSPACE_CHANNELS = [
   {
     id: 'geral',
     name: 'geral',
-    description: 'Alinhamento diário da equipa GIRO, avisos gerais e decisões de produto.',
+    description: 'Alinhamento diário da equipa, avisos gerais e decisões de produto.',
     unread: 0,
   },
   {
     id: 'sprint-planning',
     name: 'sprint-planning',
-    description: 'Planeamento do Sprint 12, estimativas em Story Points e capacidade da equipa.',
-    unread: 1,
+    description: 'Planeamento de sprints, estimativas em Story Points e capacidade da equipa.',
+    unread: 0,
   },
   {
     id: 'bloqueios',
     name: 'bloqueios',
     description: 'Registo rápido de impedimentos técnicos e acompanhamento pelo Scrum Master.',
-    unread: 1,
+    unread: 0,
   },
 ]
 
-const DEMO_MESSAGES = {
-  geral: [
-    {
-      id: 'msg-01',
-      channelId: 'geral',
-      author: { name: 'Sofia Costa', initials: 'SC', role: ROLES.PRODUCT_OWNER, roleLabel: 'Product Owner' },
-      content: 'Bom dia equipa! Os pedidos mais votados da semana foram triados na Matriz 2x2.',
-      createdAt: '2026-10-16T09:00:00Z',
-    },
-    {
-      id: 'msg-02',
-      channelId: 'geral',
-      author: { name: 'Rafael Silva', initials: 'RS', role: ROLES.DEVELOPER, roleLabel: 'Programador' },
-      content: 'Excelente! Já estou a finalizar os filtros avançados da US-31 antes da Daily.',
-      createdAt: '2026-10-16T09:12:00Z',
-    },
-  ],
-  'sprint-planning': [
-    {
-      id: 'msg-03',
-      channelId: 'sprint-planning',
-      author: { name: 'Inês Martins', initials: 'IM', role: ROLES.SCRUM_MASTER, roleLabel: 'Scrum Master' },
-      content: 'Sprint 12 está com 24 de 28 Story Points comprometidos. Mantemos margem de segurança para bugs.',
-      createdAt: '2026-10-15T16:40:00Z',
-    },
-  ],
-  bloqueios: [
-    {
-      id: 'msg-04',
-      channelId: 'bloqueios',
-      author: { name: 'Diogo Ferreira', initials: 'DF', role: ROLES.ADMIN, roleLabel: 'Administrador do Sistema' },
-      content: 'US-42 aguarda revisão final dos testes de concorrência para unicidade de voto (RNF-SEG-03).',
-      createdAt: '2026-10-16T08:55:00Z',
-    },
-  ],
+const EMPTY_MESSAGES = {
+  geral: [],
+  'sprint-planning': [],
+  bloqueios: [],
 }
 
 function loadInitialMessages() {
@@ -555,7 +114,19 @@ function loadInitialMessages() {
   } catch {
     // ignore storage errors
   }
-  return DEMO_MESSAGES
+  return EMPTY_MESSAGES
+}
+
+function normalizeSprintRecord(sprint) {
+  return {
+    idSprint: sprint.idSprint || sprint.id,
+    numeroSprint: Number(sprint.numeroSprint),
+    dataInicio: sprint.dataInicio,
+    dataFim: sprint.dataFim,
+    capacidadeMaxima: sprint.capacidadeMaxima != null ? Number(sprint.capacidadeMaxima) : null,
+    estado: sprint.estado || 'PLANEADO',
+    userStories: Array.isArray(sprint.userStories) ? sprint.userStories : [],
+  }
 }
 
 export function stripPii(text) {
@@ -708,34 +279,97 @@ function normalizeLogRecord(log, usersList = []) {
   }
 }
 
+function deriveStoryPriority(story) {
+  if (story.prioridade) return story.prioridade
+  const impact = Number(story.pedido?.impactoNegocio ?? 0)
+  const points = Number(story.storyPoints ?? 0)
+  if (impact >= 9 || points >= 8) return 'Alta'
+  if (story.pedido?.impactoNegocio != null && impact <= 4 && points <= 2) return 'Baixa'
+  return 'Média'
+}
+
+function deriveStoryEpic(story) {
+  if (story.epico) return story.epico
+  const categoria = story.pedido?.categoria
+  if (categoria === 'BUG') return 'Qualidade & Segurança'
+  if (categoria === 'MELHORIA') return 'Backlog & IA'
+  return 'Gestão de Pedidos'
+}
+
+function mapNotificationCategoryAndType(tipo) {
+  switch (tipo) {
+    case 'BLOQUEIO_TAREFA':
+      return { category: 'bloqueios', type: 'blocker' }
+    case 'NOVO_COMENTARIO':
+    case 'MENCAO':
+      return { category: 'mencoes', type: 'mention' }
+    case 'ALTERACAO_ESTADO':
+    default:
+      return { category: 'decisoes', type: 'status' }
+  }
+}
+
+function computeNotificationTimeGroup(dateValue) {
+  if (!dateValue) return 'HOJE'
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return 'HOJE'
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const diffDays = Math.round((todayStart - dateStart) / 86400000)
+  if (diffDays <= 0) return 'HOJE'
+  if (diffDays === 1) return 'ONTEM'
+  return 'ESTA SEMANA'
+}
+
+function formatSprintDateRange(startValue, endValue) {
+  if (!startValue || !endValue) return 'Sem datas definidas'
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Sem datas definidas'
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+  if (sameMonth) {
+    const monthYear = end.toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' })
+    return `${start.getDate()}–${end.getDate()} ${monthYear}`
+  }
+  const startStr = start.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })
+  const endStr = end.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })
+  return `${startStr} – ${endStr}`
+}
+
+const CATEGORY_CODE_REF = {
+  BUG: 'Frontend/src/components/common',
+  MELHORIA: 'Frontend/src/pages/PedidosPage.jsx',
+  NOVA_FUNCIONALIDADE: 'Frontend/src/pages/PriorizacaoPage.jsx',
+}
+
 export function DataProvider({ children }) {
   const { currentUser } = useAuth()
-  const hasToken = Boolean(getToken())
-  const dataSourceRef = useRef(hasToken ? 'api' : 'demo')
 
-  const [pedidos, setPedidos] = useState(() => (hasToken ? [] : DEMO_PEDIDOS))
-  const [stories, setStories] = useState(() => (hasToken ? [] : DEMO_STORIES))
-  const [sprints, setSprints] = useState(() => (hasToken ? [] : DEMO_SPRINTS))
-  const [roadmap, setRoadmap] = useState(() => (hasToken ? [] : DEMO_ROADMAP))
-  const [notifications, setNotifications] = useState(() => (hasToken ? [] : DEMO_NOTIFICATIONS))
-  const [users, setUsers] = useState(() => (hasToken ? [] : DEMO_USERS))
-  const [logs, setLogs] = useState(() => (hasToken ? [] : DEMO_LOGS))
+  const [pedidos, setPedidos] = useState([])
+  const [stories, setStories] = useState([])
+  const [sprints, setSprints] = useState([])
+  const [roadmap, setRoadmap] = useState([])
+  const [notifications, setNotifications] = useState([])
+  const [users, setUsers] = useState([])
+  const [logs, setLogs] = useState([])
   const [traceability, setTraceability] = useState([])
-  const [channels] = useState(DEMO_CHANNELS)
+  const [workspaceConfig, setWorkspaceConfig] = useState(loadWorkspaceConfig)
+  const [channels] = useState(WORKSPACE_CHANNELS)
   const [messages, setMessages] = useState(loadInitialMessages)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const loadDemoData = useCallback(() => {
-    dataSourceRef.current = 'demo'
-    setPedidos(DEMO_PEDIDOS)
-    setStories(DEMO_STORIES)
-    setSprints(DEMO_SPRINTS)
-    setRoadmap(DEMO_ROADMAP)
-    setNotifications(DEMO_NOTIFICATIONS)
-    setUsers(DEMO_USERS)
-    setLogs(DEMO_LOGS)
-    setError('')
+  const updateWorkspaceConfig = useCallback((patch) => {
+    setWorkspaceConfig((prev) => {
+      const next = { ...prev, ...patch }
+      try {
+        localStorage.setItem(WORKSPACE_CONFIG_KEY, JSON.stringify(next))
+      } catch {
+        // ignore storage errors
+      }
+      return next
+    })
   }, [])
 
   const appendDemoLog = useCallback((action, resource, details = null) => {
@@ -758,12 +392,16 @@ export function DataProvider({ children }) {
 
   const reload = useCallback(async () => {
     if (!getToken()) {
-      if (dataSourceRef.current === 'api') {
-        loadDemoData()
-      }
+      setPedidos([])
+      setStories([])
+      setSprints([])
+      setRoadmap([])
+      setNotifications([])
+      setUsers([])
+      setLogs([])
+      setError('')
       return
     }
-    dataSourceRef.current = 'api'
     setLoading(true)
     setError('')
     try {
@@ -787,6 +425,10 @@ export function DataProvider({ children }) {
       const apiLogs = valueAt(6)
 
       const normalizedUsers = apiUsers.map(normalizeUserRecord)
+      const normalizedSprints = apiSprints
+        .map(normalizeSprintRecord)
+        .sort((a, b) => a.numeroSprint - b.numeroSprint)
+
       setPedidos(apiPedidos.map(normalizePedidoRecord))
       setStories(apiStories.map((story) => ({
         id: story.codigoUs,
@@ -801,7 +443,8 @@ export function DataProvider({ children }) {
         sprintId: story.idSprint || null,
         status: STORY_STATUS[story.estadoTecnico] || 'todo',
         backendStatus: story.estadoTecnico,
-        priority: 'Média',
+        priority: deriveStoryPriority(story),
+        epic: deriveStoryEpic(story),
         points: story.storyPoints || null,
         effort: story.tempoRegistado || null,
         assignee: story.responsavel ? {
@@ -815,23 +458,27 @@ export function DataProvider({ children }) {
         releaseId: story.idRelease,
         createdAt: story.dataCriacao,
       })))
-      setSprints(apiSprints)
+      setSprints(normalizedSprints)
       setRoadmap(apiRoadmap)
-      setNotifications(apiNotifications.map((notification) => ({
-        id: notification.idNotificacao,
-        title: notification.tipo,
-        description: notification.mensagem,
-        category: notification.tipo?.toLowerCase() || 'decisoes',
-        read: notification.lida,
-        createdAt: notification.dataCriacao,
-        timeGroup: 'RECENTES',
-        timestamp: notification.dataCriacao
-          ? new Date(notification.dataCriacao).toLocaleDateString('pt-PT')
-          : 'Agora',
-        refCode: notification.idPedido || 'GIRO',
-        assignee: notification.utilizador?.nome || 'Equipa',
-        author: notification.utilizador ? { name: notification.utilizador.nome, initials: notification.utilizador.nome.slice(0, 2).toUpperCase() } : null,
-      })))
+      setNotifications(apiNotifications.map((notification) => {
+        const { category, type } = mapNotificationCategoryAndType(notification.tipo)
+        return {
+          id: notification.idNotificacao,
+          title: notification.tipo,
+          description: notification.mensagem,
+          category,
+          type,
+          read: notification.lida,
+          createdAt: notification.dataCriacao,
+          timeGroup: computeNotificationTimeGroup(notification.dataCriacao),
+          timestamp: notification.dataCriacao
+            ? new Date(notification.dataCriacao).toLocaleDateString('pt-PT')
+            : 'Agora',
+          refCode: notification.idPedido || 'GIRO',
+          assignee: notification.utilizador?.nome || 'Equipa',
+          author: notification.utilizador ? { name: notification.utilizador.nome, initials: notification.utilizador.nome.slice(0, 2).toUpperCase() } : null,
+        }
+      }))
       setUsers(normalizedUsers)
       setLogs(canReadInternal ? apiLogs.map((entry) => normalizeLogRecord(entry, normalizedUsers)) : [])
     } catch (loadError) {
@@ -839,7 +486,7 @@ export function DataProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }, [currentUserRole, loadDemoData])
+  }, [currentUserRole])
 
   useEffect(() => {
     queueMicrotask(() => reload())
@@ -879,7 +526,7 @@ export function DataProvider({ children }) {
       return result
     }
 
-    const voterId = currentUser?.id || 'usr-demo'
+    const voterId = currentUser?.id || 'usr-local'
     let votedState = false
     setPedidos((prev) =>
       prev.map((pedido) => {
@@ -926,13 +573,13 @@ export function DataProvider({ children }) {
       effort: null,
       impact: null,
       voteCount: 1,
-      votedBy: [currentUser?.id || 'usr-demo'],
+      votedBy: [currentUser?.id || 'usr-local'],
       tags: Array.isArray(data.tags) ? data.tags : [],
       createdAt: new Date().toISOString(),
       author: {
-        name: currentUser?.name || 'Utilizador Demo',
+        name: currentUser?.name || 'Utilizador',
         role: getRoleCode(currentUser?.role),
-        avatar: currentUser?.initials || 'UD',
+        avatar: currentUser?.initials || 'US',
       },
       linkedStoryId: null,
       aiRecommendation: null,
@@ -992,7 +639,7 @@ export function DataProvider({ children }) {
     const target = pedidos.find((p) => p.id === pedidoId)
     if (!target) throw new Error('Pedido não encontrado.')
     if (['approved', 'planned', 'development', 'complete'].includes(target.status)) {
-      throw new Error('Pedidos aprovados ou em execução não podem ser eliminados (CA2.3).')
+      throw new Error('Pedidos aprovados ou em execução não podem ser eliminados.')
     }
     setPedidos((prev) => prev.filter((p) => p.id !== pedidoId))
     appendDemoLog('PEDIDO_ELIMINADO', `Pedido/${pedidoId}`)
@@ -1152,11 +799,188 @@ export function DataProvider({ children }) {
     return updatedUser
   }, [appendDemoLog, currentUser, reload])
 
+  const activeSprint = useMemo(() => {
+    return sprints.find((s) => s.estado === 'ATIVO') || sprints.find((s) => s.estado === 'PLANEADO') || null
+  }, [sprints])
+
+  const activeSprintLabel = activeSprint?.numeroSprint ? `Sprint ${activeSprint.numeroSprint}` : 'Sem sprint ativo'
+  const activeSprintCode = activeSprint?.numeroSprint ? `sprint-${activeSprint.numeroSprint}` : null
+  const activeSprintDateRange = useMemo(
+    () => (activeSprint ? formatSprintDateRange(activeSprint.dataInicio, activeSprint.dataFim) : 'Sem datas definidas'),
+    [activeSprint]
+  )
+
+  const createSprint = useCallback(async (data) => {
+    const payload = {
+      numeroSprint: Number(data.numeroSprint),
+      dataInicio: data.dataInicio,
+      dataFim: data.dataFim,
+      ...(data.capacidadeMaxima ? { capacidadeMaxima: Number(data.capacidadeMaxima) } : {}),
+      estado: data.estado || 'PLANEADO',
+    }
+
+    if (getToken()) {
+      const created = await apiRequest('/sprints', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+      await reload()
+      return normalizeSprintRecord(created)
+    }
+
+    if (sprints.some((s) => Number(s.numeroSprint) === payload.numeroSprint)) {
+      throw new Error(`Já existe um Sprint com o número ${payload.numeroSprint}.`)
+    }
+    if (payload.estado === 'ATIVO' && sprints.some((s) => s.estado === 'ATIVO')) {
+      throw new Error('Já existe um Sprint ativo. Conclua o Sprint atual antes de ativar outro.')
+    }
+    if (new Date(payload.dataFim) <= new Date(payload.dataInicio)) {
+      throw new Error('A data de fim deve ser posterior à data de início.')
+    }
+
+    const created = normalizeSprintRecord({
+      idSprint: `sprint-${payload.numeroSprint}-${Date.now()}`,
+      ...payload,
+    })
+    setSprints((prev) => [...prev, created].sort((a, b) => a.numeroSprint - b.numeroSprint))
+    appendDemoLog('SPRINT_CRIADO', `Sprint/${created.numeroSprint}`, payload)
+    return created
+  }, [appendDemoLog, reload, sprints])
+
+  const updateSprint = useCallback(async (sprintId, updates) => {
+    const payload = {
+      ...(updates.numeroSprint !== undefined ? { numeroSprint: Number(updates.numeroSprint) } : {}),
+      ...(updates.dataInicio !== undefined ? { dataInicio: updates.dataInicio } : {}),
+      ...(updates.dataFim !== undefined ? { dataFim: updates.dataFim } : {}),
+      ...(updates.capacidadeMaxima !== undefined
+        ? { capacidadeMaxima: updates.capacidadeMaxima ? Number(updates.capacidadeMaxima) : null }
+        : {}),
+      ...(updates.estado !== undefined ? { estado: updates.estado } : {}),
+      ...(updates.incompletePolicy !== undefined ? { incompletePolicy: updates.incompletePolicy } : {}),
+      ...(updates.targetSprintId !== undefined ? { targetSprintId: updates.targetSprintId } : {}),
+    }
+
+    if (getToken()) {
+      const updated = await apiRequest(`/sprints/${sprintId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+      await reload()
+      return normalizeSprintRecord(updated)
+    }
+
+    const existing = sprints.find((s) => s.idSprint === sprintId)
+    if (!existing) throw new Error('Sprint não encontrado.')
+    if (
+      payload.numeroSprint !== undefined &&
+      sprints.some((s) => s.idSprint !== sprintId && Number(s.numeroSprint) === payload.numeroSprint)
+    ) {
+      throw new Error(`Já existe outro Sprint com o número ${payload.numeroSprint}.`)
+    }
+    const effStart = new Date(payload.dataInicio ?? existing.dataInicio)
+    const effEnd = new Date(payload.dataFim ?? existing.dataFim)
+    if (effEnd <= effStart) {
+      throw new Error('A data de fim deve ser posterior à data de início.')
+    }
+    if (
+      payload.estado === 'ATIVO' &&
+      existing.estado !== 'ATIVO' &&
+      sprints.some((s) => s.idSprint !== sprintId && s.estado === 'ATIVO')
+    ) {
+      throw new Error('Já existe outro Sprint ativo. Conclua-o primeiro.')
+    }
+
+    const { incompletePolicy = 'BACKLOG', targetSprintId = null, ...sprintFields } = payload
+    const updated = normalizeSprintRecord({ ...existing, ...sprintFields })
+
+    setSprints((prev) =>
+      prev.map((s) => (s.idSprint === sprintId ? updated : s)).sort((a, b) => a.numeroSprint - b.numeroSprint)
+    )
+
+    if (
+      ['CONCLUIDO', 'CANCELADO'].includes(payload.estado) &&
+      !['CONCLUIDO', 'CANCELADO'].includes(existing.estado)
+    ) {
+      const targetSp = targetSprintId ? sprints.find((s) => s.idSprint === targetSprintId) : null
+      setStories((prev) =>
+        prev.map((st) => {
+          const belongsToClosed =
+            st.sprintId === sprintId ||
+            st.sprint === `sprint-${existing.numeroSprint}` ||
+            st.target === `Sprint ${existing.numeroSprint}`
+          if (!belongsToClosed || st.status === 'done' || st.backendStatus === 'CONCLUIDO') return st
+          if (incompletePolicy === 'NEXT_SPRINT' && targetSp) {
+            return {
+              ...st,
+              sprintId: targetSp.idSprint,
+              sprint: `sprint-${targetSp.numeroSprint}`,
+              target: `Sprint ${targetSp.numeroSprint}`,
+              status: 'todo',
+              backendStatus: 'TODO',
+            }
+          }
+          return {
+            ...st,
+            sprintId: null,
+            sprint: null,
+            target: 'Backlog do produto',
+            status: 'todo',
+            backendStatus: 'BACKLOG',
+          }
+        })
+      )
+    }
+
+    appendDemoLog(payload.estado === 'CONCLUIDO' ? 'SPRINT_CONCLUIDO' : 'SPRINT_ATUALIZADO', `Sprint/${updated.numeroSprint}`, payload)
+    return updated
+  }, [appendDemoLog, reload, sprints])
+
+  const activateSprint = useCallback(async (sprintId) => {
+    return updateSprint(sprintId, { estado: 'ATIVO' })
+  }, [updateSprint])
+
+  const completeSprint = useCallback(async (sprintId, options = {}) => {
+    return updateSprint(sprintId, {
+      estado: 'CONCLUIDO',
+      incompletePolicy: options.incompletePolicy || 'BACKLOG',
+      targetSprintId: options.targetSprintId || null,
+    })
+  }, [updateSprint])
+
+  const deleteSprint = useCallback(async (sprintId) => {
+    if (getToken()) {
+      await apiRequest(`/sprints/${sprintId}`, { method: 'DELETE' })
+      await reload()
+      return
+    }
+
+    const existing = sprints.find((s) => s.idSprint === sprintId)
+    if (!existing) throw new Error('Sprint não encontrado.')
+    setSprints((prev) => prev.filter((s) => s.idSprint !== sprintId))
+    setStories((prev) =>
+      prev.map((st) => {
+        const belongsToDeleted =
+          st.sprintId === sprintId ||
+          st.sprint === `sprint-${existing.numeroSprint}` ||
+          st.target === `Sprint ${existing.numeroSprint}`
+        if (!belongsToDeleted) return st
+        return {
+          ...st,
+          sprintId: null,
+          sprint: null,
+          target: 'Backlog do produto',
+          ...(st.status === 'done' ? {} : { status: 'todo', backendStatus: 'BACKLOG' }),
+        }
+      })
+    )
+    appendDemoLog('SPRINT_ELIMINADO', `Sprint/${existing.numeroSprint}`)
+  }, [appendDemoLog, reload, sprints])
+
   const addStory = useCallback(async (data) => {
     if (getToken()) {
       if (!data.linkedPedidoId) throw new Error('Associe a User Story a um pedido aprovado.')
       const matchedSprint = sprints.find(
-        (sp) => `Sprint ${sp.numeroSprint}` === data.target || sp.idSprint === data.sprint
+        (sp) => `Sprint ${sp.numeroSprint}` === data.target || `sprint-${sp.numeroSprint}` === data.sprint || sp.idSprint === data.sprint
       )
       const result = await apiRequest('/user-stories', {
         method: 'POST',
@@ -1178,7 +1002,17 @@ export function DataProvider({ children }) {
 
     const nextCode = data.code || `US-${46 + stories.length}`
     const targetLabel = data.target || 'Backlog do produto'
-    const isSprint12 = targetLabel === 'Sprint 12' || data.sprint === 'sprint-12'
+    const matchedSprint = sprints.find(
+      (sp) =>
+        `Sprint ${sp.numeroSprint}` === targetLabel ||
+        `sprint-${sp.numeroSprint}` === data.sprint ||
+        sp.idSprint === data.sprint
+    ) || (targetLabel.startsWith('Sprint') ? activeSprint : null)
+    const resolvedSprintCode = matchedSprint
+      ? `sprint-${matchedSprint.numeroSprint}`
+      : (targetLabel.startsWith('Sprint') ? activeSprintCode : null)
+    const linkedPedido = pedidos.find((p) => p.id === data.linkedPedidoId)
+    const derivedEpic = deriveStoryEpic({ pedido: linkedPedido ? { categoria: linkedPedido.category } : null })
     const newStory = {
       id: nextCode,
       backendId: `demo-${Date.now()}`,
@@ -1191,9 +1025,9 @@ export function DataProvider({ children }) {
             .map((line) => line.trim())
             .filter(Boolean),
       target: targetLabel,
-      sprint: isSprint12 ? 'sprint-12' : null,
+      sprint: resolvedSprintCode,
       status: 'todo',
-      backendStatus: isSprint12 ? 'TODO' : 'BACKLOG',
+      backendStatus: resolvedSprintCode ? 'TODO' : 'BACKLOG',
       priority: data.priority || 'Média',
       points: data.points || 3,
       effort: 0,
@@ -1201,7 +1035,7 @@ export function DataProvider({ children }) {
       impediment: false,
       linkedPedidoId: data.linkedPedidoId || null,
       pedidoCode: data.linkedPedidoId || null,
-      epic: 'EP02: Backlog & IA',
+      epic: derivedEpic,
     }
     setStories((prev) => [newStory, ...prev])
     if (data.linkedPedidoId) {
@@ -1211,7 +1045,7 @@ export function DataProvider({ children }) {
     }
     appendDemoLog('USER_STORY_CRIADA', `UserStory/${nextCode}`, { linkedPedidoId: data.linkedPedidoId })
     return newStory
-  }, [appendDemoLog, reload, sprints, stories.length])
+  }, [activeSprint, activeSprintCode, appendDemoLog, pedidos, reload, sprints, stories.length])
 
   const moveStory = useCallback(async (storyId, status) => {
     const story = stories.find((item) => item.id === storyId)
@@ -1245,13 +1079,21 @@ export function DataProvider({ children }) {
     if (getToken()) {
       if (!story.backendId) throw new Error('User Story não encontrada')
       const payload = { ...data }
-      if ('target' in payload || 'sprint' in payload) {
-        const matchedSprint = sprints.find(
-          (sp) => `Sprint ${sp.numeroSprint}` === payload.target || `sprint-${sp.numeroSprint}` === payload.sprint
-        )
-        payload.idSprint = matchedSprint ? matchedSprint.idSprint : null
-        delete payload.target
-        delete payload.sprint
+      if ('idSprint' in payload || 'target' in payload || 'sprint' in payload) {
+        if ('idSprint' in payload) {
+          delete payload.target
+          delete payload.sprint
+        } else {
+          const matchedSprint = sprints.find(
+            (sp) =>
+              `Sprint ${sp.numeroSprint}` === payload.target ||
+              `sprint-${sp.numeroSprint}` === payload.sprint ||
+              sp.idSprint === payload.sprint
+          )
+          payload.idSprint = matchedSprint ? matchedSprint.idSprint : null
+          delete payload.target
+          delete payload.sprint
+        }
       }
       await apiRequest(`/user-stories/${story.backendId}`, {
         method: 'PATCH',
@@ -1261,10 +1103,19 @@ export function DataProvider({ children }) {
       return
     }
 
+    const nextData = { ...data }
+    if ('idSprint' in nextData) {
+      const matched = nextData.idSprint ? sprints.find((sp) => sp.idSprint === nextData.idSprint) : null
+      nextData.sprintId = matched ? matched.idSprint : null
+      nextData.sprint = matched ? `sprint-${matched.numeroSprint}` : null
+      nextData.target = matched ? `Sprint ${matched.numeroSprint}` : 'Backlog do produto'
+      delete nextData.idSprint
+    }
+
     setStories((prev) =>
-      prev.map((item) => (item.id === storyId ? { ...item, ...data } : item))
+      prev.map((item) => (item.id === storyId ? { ...item, ...nextData } : item))
     )
-    appendDemoLog('USER_STORY_ATUALIZADA', `UserStory/${storyId}`, data)
+    appendDemoLog('USER_STORY_ATUALIZADA', `UserStory/${storyId}`, nextData)
   }, [appendDemoLog, reload, sprints, stories])
 
   const addMessage = useCallback((channelId, content) => {
@@ -1278,8 +1129,8 @@ export function DataProvider({ children }) {
       id: `msg-${Date.now()}`,
       channelId: targetChannel,
       author: {
-        name: currentUser?.name || 'Sofia Costa',
-        initials: currentUser?.initials || 'SC',
+        name: currentUser?.name || 'Utilizador',
+        initials: currentUser?.initials || 'US',
         role: roleKey,
         roleLabel: getRoleLabel(roleKey),
       },
@@ -1369,7 +1220,14 @@ export function DataProvider({ children }) {
         gitBranch: firstStory ? `feature/${firstStory.id.toLowerCase()}` : '—',
         commit: firstStory?.status === 'done' ? 'verified' : '—',
         criteria: linkedStories.flatMap((story) => story.acceptanceCriteria || []).join(' · ') || 'Ainda sem critérios de aceitação associados.',
-        codeRefs: firstStory ? [`src/pages/SprintKanbanPage.jsx (${firstStory.id})`] : [],
+        codeRefs: linkedStories.length
+          ? [
+              ...linkedStories.map(
+                (story) => `${CATEGORY_CODE_REF[pedido.category] || 'Frontend/src/pages/SprintKanbanPage.jsx'} (${story.id})`
+              ),
+              ...(linkedStories.some((s) => s.status === 'done') ? ['Backend/src/services/domain.service.js'] : []),
+            ]
+          : [],
         coveragePercentage: status === 'tracked' ? 100 : status === 'partially_tracked' ? 60 : 0,
         notes: firstStory ? 'Ligação persistida entre pedido e User Story.' : 'Pedido ainda sem User Story associada.',
       }
@@ -1382,10 +1240,16 @@ export function DataProvider({ children }) {
     pedidos,
     stories,
     sprints,
+    activeSprint,
+    activeSprintLabel,
+    activeSprintCode,
+    activeSprintDateRange,
     roadmap,
     users,
     logs: visibleLogs,
     traceability: effectiveTraceability,
+    workspaceConfig,
+    updateWorkspaceConfig,
     channels,
     messages,
     notifications,
@@ -1403,6 +1267,11 @@ export function DataProvider({ children }) {
     addComment,
     requestAiPrioritization,
     updateUserRoleOrStatus,
+    createSprint,
+    updateSprint,
+    activateSprint,
+    completeSprint,
+    deleteSprint,
     addStory,
     moveStory,
     updateStory,

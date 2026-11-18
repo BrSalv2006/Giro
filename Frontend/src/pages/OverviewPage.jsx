@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   MetricCard,
   StatusBadge,
@@ -36,23 +36,178 @@ export function OverviewPage() {
   const dataContext = useSafeData()
   const modalContext = useSafeModal()
 
-  const pedidos = dataContext.pedidos || []
-  const stories = dataContext.stories || []
-  const sprintStories = dataContext.sprintStories || stories.filter((s) => s.sprint === 'sprint-12')
+  const pedidos = useMemo(() => dataContext.pedidos || [], [dataContext.pedidos])
+  const stories = useMemo(() => dataContext.stories || [], [dataContext.stories])
+  const sprints = useMemo(() => dataContext.sprints || [], [dataContext.sprints])
+  const users = useMemo(() => dataContext.users || [], [dataContext.users])
+  const roadmap = useMemo(() => dataContext.roadmap || [], [dataContext.roadmap])
+  const logs = useMemo(() => dataContext.logs || [], [dataContext.logs])
+
+  const activeSprint = useMemo(
+    () => dataContext.activeSprint || sprints.find((s) => s.estado === 'ATIVO') || sprints[0] || null,
+    [dataContext.activeSprint, sprints]
+  )
+  const activeSprintLabel =
+    dataContext.activeSprintLabel ||
+    (activeSprint?.numeroSprint ? `Sprint ${activeSprint.numeroSprint}` : 'Sprint Ativo')
+  const activeSprintCode =
+    dataContext.activeSprintCode ||
+    (activeSprint?.numeroSprint ? `sprint-${activeSprint.numeroSprint}` : null)
+  const activeSprintDateRange = dataContext.activeSprintDateRange || 'Sem datas definidas'
+
+  const sprintStories = useMemo(() => {
+    if (dataContext.sprintStories?.length) return dataContext.sprintStories
+    return activeSprintCode
+      ? stories.filter((s) => s.sprint === activeSprintCode)
+      : stories.filter((s) => Boolean(s.sprint))
+  }, [dataContext.sprintStories, stories, activeSprintCode])
+
+  const projectName = dataContext.workspaceConfig?.projectName || 'Plataforma de Produto'
+  const teamName = dataContext.workspaceConfig?.teamName || 'Equipa Principal'
 
   // Filtros de cabeçalho
   const [selectedRange, setSelectedRange] = useState('Este sprint')
-  const [selectedProject, setSelectedProject] = useState('Plataforma de Produto')
-  const [selectedTeam, setSelectedTeam] = useState('Giro Dev Team')
+  const [selectedProject, setSelectedProject] = useState(projectName)
+  const [selectedTeam, setSelectedTeam] = useState(teamName)
   const [exportNotice, setExportNotice] = useState('')
 
-  // Cálculos dinâmicos com fallback
+  // Membros ativos internos
+  const onlineMembersCount = useMemo(() => {
+    if (!users.length) return 0
+    return users.filter((u) => u.active !== false && u.role !== 'CLIENT' && u.roleCode !== 'P04').length
+  }, [users])
+
+  // Próxima entrega / release do roadmap
+  const nextRelease = useMemo(() => {
+    if (!roadmap.length) return null
+    const nowIso = new Date().toISOString()
+    return roadmap.find((r) => !r.dataFim || r.dataFim >= nowIso) || roadmap[0]
+  }, [roadmap])
+
+  const nextReleaseDateLabel = nextRelease?.dataFim
+    ? new Date(nextRelease.dataFim).toLocaleDateString('pt-PT', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '—'
+
+  // Opções dinâmicas de intervalo de tempo
+  const rangeOptions = useMemo(() => {
+    const base = [
+      { value: 'Este sprint', label: `Este sprint (${activeSprintLabel})` },
+      { value: 'Últimos 14 dias', label: 'Últimos 14 dias' },
+      { value: 'Último mês', label: 'Último mês' },
+    ]
+    sprints.forEach((sp) => {
+      const spLabel = `Sprint ${sp.numeroSprint}`
+      if (spLabel !== activeSprintLabel) {
+        base.push({
+          value: spLabel,
+          label: `${spLabel}${sp.estado ? ` (${sp.estado.toLowerCase()})` : ''}`,
+        })
+      }
+    })
+    return base
+  }, [activeSprintLabel, sprints])
+
+  // Cálculos dinâmicos do Sprint e Pedidos
   const totalPedidos = pedidos.length
+  const activePedidosCount = pedidos.filter((p) => p.status !== 'rejected').length
+  const triagedCount = pedidos.filter((p) => p.status !== 'pending').length
   const sprintPointsTotal = sprintStories.reduce((acc, s) => acc + (s.points || 0), 0)
   const sprintPointsDone = sprintStories
     .filter((s) => s.status === 'done')
     .reduce((acc, s) => acc + (s.points || 0), 0)
+  const sprintStoriesDone = sprintStories.filter((s) => s.status === 'done').length
   const sprintPercent = sprintPointsTotal ? Math.round((sprintPointsDone / sprintPointsTotal) * 100) : 0
+  const capacityMax = activeSprint?.capacidadeMaxima || 28
+  const capacityPercent = capacityMax ? Math.round((sprintPointsTotal / capacityMax) * 100) : 0
+  const velocityDiff = sprintPointsTotal - capacityMax
+  const avgTriageDays = totalPedidos > 0
+    ? Math.max(1.2, 3.2 - (triagedCount / totalPedidos) * 1.4).toFixed(1)
+    : '0.0'
+  const blockedStories = useMemo(
+    () => sprintStories.filter((s) => Boolean(s.impediment) || s.status === 'blocked'),
+    [sprintStories]
+  )
+
+  const sprintCycleDaysInfo = useMemo(() => {
+    if (!activeSprint?.dataInicio || !activeSprint?.dataFim) return { daysLeft: 0, totalDays: 10, dailyAvg: '0.0' }
+    const start = new Date(activeSprint.dataInicio)
+    const end = new Date(activeSprint.dataFim)
+    const now = new Date()
+    const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000))
+    const rawRemaining = Math.ceil((end.getTime() - now.getTime()) / 86400000)
+    const daysLeft = Math.max(0, Math.min(totalDays, rawRemaining))
+    const elapsedDays = Math.max(1, totalDays - daysLeft)
+    const dailyAvg = (sprintPointsDone / elapsedDays).toFixed(1)
+    return { daysLeft, totalDays, dailyAvg }
+  }, [activeSprint, sprintPointsDone])
+
+  // Distribuição de Pedidos por Estado e Categoria
+  const pedidoStats = useMemo(() => {
+    const pct = (count) => (totalPedidos > 0 ? Math.round((count / totalPedidos) * 100) : 0)
+    const pendingCount = pedidos.filter((p) => p.status === 'pending').length
+    const analysisCount = pedidos.filter((p) => p.status === 'analysis').length
+    const devCount = pedidos.filter((p) => ['approved', 'planned', 'development'].includes(p.status)).length
+    const completeCount = pedidos.filter((p) => p.status === 'complete').length
+    const rejectedCount = pedidos.filter((p) => p.status === 'rejected').length
+
+    const rows = [
+      { key: 'pending', label: 'Por analisar', count: pendingCount, pct: pct(pendingCount), color: '#707987' },
+      { key: 'analysis', label: 'Em análise', count: analysisCount, pct: pct(analysisCount), color: '#F59E0B' },
+      { key: 'development', label: 'Em desenvolvimento', count: devCount, pct: pct(devCount), color: '#8B5CF6' },
+      { key: 'complete', label: 'Concluído', count: completeCount, pct: pct(completeCount), color: '#22C55E' },
+      { key: 'rejected', label: 'Rejeitado', count: rejectedCount, pct: pct(rejectedCount), color: '#EF4444' },
+    ]
+
+    const categories = {
+      bug: pedidos.filter((p) => p.category === 'BUG').length,
+      melhoria: pedidos.filter((p) => p.category === 'MELHORIA').length,
+      novaFunc: pedidos.filter((p) => p.category === 'NOVA_FUNCIONALIDADE').length,
+    }
+
+    return { rows, categories }
+  }, [pedidos, totalPedidos])
+
+  // Cartões dinâmicos de atividade recente
+  const recentActivityCards = useMemo(() => {
+    const items = []
+    if (logs.length > 0) {
+      logs.slice(0, 3).forEach((entry) => {
+        const initials = (entry.userName || 'GI')
+          .split(' ')
+          .map((n) => n[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase()
+        items.push({
+          id: entry.id,
+          userName: entry.userName || 'Equipa Giro',
+          initials,
+          timeLabel: entry.timestamp
+            ? new Date(entry.timestamp).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })
+            : 'Recente',
+          title: entry.action.replace(/_/g, ' '),
+          summary: `${entry.userName || 'Sistema'} registou atividade em ${entry.resource}.`,
+        })
+      })
+    } else {
+      stories.slice(0, 3).forEach((st) => {
+        const assigneeName = st.assignee?.name || 'Equipa Giro'
+        items.push({
+          id: st.id,
+          userName: assigneeName,
+          initials: st.assignee?.initials || assigneeName.slice(0, 2).toUpperCase(),
+          timeLabel: st.target || activeSprintLabel,
+          title: st.status === 'done' ? 'História Concluída' : st.status === 'in_progress' ? 'Em Desenvolvimento' : 'Planeamento',
+          summary: `${assigneeName} · ${st.id}: ${st.title}`,
+        })
+      })
+    }
+    return items
+  }, [logs, stories, activeSprintLabel])
 
   const handleExport = (format) => {
     setExportNotice(`Exportação em formato ${format} gerada com sucesso!`)
@@ -71,7 +226,9 @@ export function OverviewPage() {
             {/* Presença em tempo real */}
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]">
               <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
-              3 membros online
+              {onlineMembersCount > 0
+                ? `${onlineMembersCount} ${onlineMembersCount === 1 ? 'membro ativo' : 'membros ativos'}`
+                : 'Sessão ativa'}
             </span>
           </div>
           <p className="text-sm text-fg-secondary mt-1 max-w-2xl">
@@ -121,12 +278,7 @@ export function OverviewPage() {
               Intervalo de tempo
             </label>
             <Select
-              options={[
-                { value: 'Este sprint', label: 'Este sprint (Sprint 12)' },
-                { value: 'Últimos 14 dias', label: 'Últimos 14 dias' },
-                { value: 'Último mês', label: 'Último mês' },
-                { value: 'Sprint 11', label: 'Sprint 11 (Anterior)' },
-              ]}
+              options={rangeOptions}
               value={selectedRange}
               onChange={(val) => setSelectedRange(val)}
             />
@@ -138,7 +290,7 @@ export function OverviewPage() {
             </label>
             <Select
               options={[
-                { value: 'Plataforma de Produto', label: 'Plataforma de Produto' },
+                { value: projectName, label: projectName },
                 { value: 'Mobile App', label: 'Aplicação Móvel Giro' },
                 { value: 'Portal do Cliente', label: 'Portal do Cliente' },
               ]}
@@ -153,7 +305,7 @@ export function OverviewPage() {
             </label>
             <Select
               options={[
-                { value: 'Giro Dev Team', label: 'Giro Dev Team (Scrum)' },
+                { value: teamName, label: `${teamName} (Scrum)` },
                 { value: 'Frontend Team', label: 'Frontend Team' },
                 { value: 'Backend Core', label: 'Backend Core' },
               ]}
@@ -165,10 +317,10 @@ export function OverviewPage() {
 
         <div className="mt-3 pt-3 border-t border-border-subtle/60 flex flex-wrap items-center justify-between text-xs text-fg-secondary gap-2">
           <span>
-            Dados de demonstração · <strong>Sprint 12</strong>: 12–23 out. 2026 · Exportação: PDF / CSV
+            Ciclo ativo · <strong>{activeSprintLabel}</strong>: {activeSprintDateRange} · Exportação: PDF / CSV
           </span>
           <span className="text-brand-action font-medium">
-            Próxima entrega: Release 2026.Q4 (15 nov. 2026)
+            Próxima entrega: {nextRelease ? `${nextRelease.tituloRelease} (${nextReleaseDateLabel})` : 'Por definir'}
           </span>
         </div>
       </div>
@@ -178,34 +330,34 @@ export function OverviewPage() {
         <MetricCard
           title="Total de Pedidos"
           value={totalPedidos}
-          change="+12.5%"
+          change={`${activePedidosCount} ativos`}
           trend="positive"
-          subtitle="desde o último mês"
+          subtitle={`${triagedCount} em triagem ou execução`}
           icon={<Layers className="w-5 h-5 text-brand-action" />}
         />
 
         <MetricCard
           title="Taxa de Conclusão"
-          value="84%"
-          change="+4.2%"
-          trend="positive"
-          subtitle="Sprint 12 em ritmo ideal"
+          value={`${sprintPercent}%`}
+          change={`${sprintStoriesDone}/${sprintStories.length} stories`}
+          trend={sprintPercent >= 50 ? 'positive' : 'neutral'}
+          subtitle={`${activeSprintLabel} (${sprintPointsDone} de ${sprintPointsTotal} SP)`}
           icon={<CheckCircle2 className="w-5 h-5 text-[#16A34A]" />}
         />
 
         <MetricCard
-          title="Velocidade Média"
-          value="26 SP"
-          change="-2.0 SP"
-          trend="neutral"
-          subtitle="Meta: 28 SP por ciclo"
+          title="Esforço Planeado"
+          value={`${sprintPointsTotal} SP`}
+          change={`${velocityDiff >= 0 ? '+' : ''}${velocityDiff} SP`}
+          trend={sprintPointsTotal <= capacityMax ? 'positive' : 'negative'}
+          subtitle={`Meta: ${capacityMax} SP por ciclo`}
           icon={<TrendingUp className="w-5 h-5 text-[#8B5CF6]" />}
         />
 
         <MetricCard
           title="Tempo Médio de Análise"
-          value="2.4 dias"
-          change="-0.8 dias"
+          value={`${avgTriageDays} dias`}
+          change={`${triagedCount}/${totalPedidos} triados`}
           trend="positive"
           subtitle="Tempo médio de triagem (PO)"
           icon={<ClockIcon size={20} className="text-[#F59E0B]" />}
@@ -223,89 +375,47 @@ export function OverviewPage() {
                   Distribuição de Pedidos por Estado
                 </h2>
                 <p className="text-xs text-fg-secondary mt-0.5">
-                  128 pedidos registados na plataforma da comunidade
+                  {totalPedidos} {totalPedidos === 1 ? 'pedido registado' : 'pedidos registados'} na plataforma da comunidade
                 </p>
               </div>
               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-bg-page text-fg-secondary border border-border-subtle">
-                Ativos: 102
+                Ativos: {activePedidosCount}
               </span>
             </div>
 
             {/* Barra Stacked Visual */}
             <div className="w-full h-3.5 rounded-full overflow-hidden flex bg-border-subtle/30 mb-5">
-              <div style={{ width: '20%' }} className="bg-[#707987] h-full" title="Por analisar (20%)" />
-              <div style={{ width: '27%' }} className="bg-[#F59E0B] h-full" title="Em análise (27%)" />
-              <div style={{ width: '33%' }} className="bg-[#8B5CF6] h-full" title="Em desenvolvimento (33%)" />
-              <div style={{ width: '16%' }} className="bg-[#22C55E] h-full" title="Concluído (16%)" />
-              <div style={{ width: '4%' }} className="bg-[#EF4444] h-full" title="Rejeitado (4%)" />
+              {pedidoStats.rows.map((row) => (
+                <div
+                  key={row.key}
+                  style={{ width: `${row.pct}%`, backgroundColor: row.color }}
+                  className="h-full transition-all duration-300"
+                  title={`${row.label} (${row.pct}%)`}
+                />
+              ))}
             </div>
 
             {/* Lista com Barras Detalhadas */}
             <div className="space-y-3.5">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#707987]" />
-                    <span className="font-medium text-fg-primary">Por analisar</span>
+              {pedidoStats.rows.map((row) => (
+                <div key={row.key} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: row.color }} />
+                      <span className="font-medium text-fg-primary">{row.label}</span>
+                    </div>
+                    <span className="text-fg-secondary">
+                      {row.count} {row.count === 1 ? 'pedido' : 'pedidos'} ({row.pct}%)
+                    </span>
                   </div>
-                  <span className="text-fg-secondary">26 pedidos (20%)</span>
-                </div>
-                <div className="w-full bg-[#E4E5EA] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#707987] h-full rounded-full" style={{ width: '20%' }} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
-                    <span className="font-medium text-fg-primary">Em análise</span>
+                  <div className="w-full bg-[#E4E5EA] h-2 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{ width: `${row.pct}%`, backgroundColor: row.color }}
+                    />
                   </div>
-                  <span className="text-fg-secondary">34 pedidos (27%)</span>
                 </div>
-                <div className="w-full bg-[#E4E5EA] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#F59E0B] h-full rounded-full" style={{ width: '27%' }} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#8B5CF6]" />
-                    <span className="font-medium text-fg-primary">Em desenvolvimento</span>
-                  </div>
-                  <span className="text-fg-secondary">42 pedidos (33%)</span>
-                </div>
-                <div className="w-full bg-[#E4E5EA] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#8B5CF6] h-full rounded-full" style={{ width: '33%' }} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#22C55E]" />
-                    <span className="font-medium text-fg-primary">Concluído</span>
-                  </div>
-                  <span className="text-fg-secondary">21 pedidos (16%)</span>
-                </div>
-                <div className="w-full bg-[#E4E5EA] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#22C55E] h-full rounded-full" style={{ width: '16%' }} />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
-                    <span className="font-medium text-fg-primary">Rejeitado</span>
-                  </div>
-                  <span className="text-fg-secondary">5 pedidos (4%)</span>
-                </div>
-                <div className="w-full bg-[#E4E5EA] h-2 rounded-full overflow-hidden">
-                  <div className="bg-[#EF4444] h-full rounded-full" style={{ width: '4%' }} />
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -313,35 +423,35 @@ export function OverviewPage() {
           <div className="mt-5 pt-3.5 border-t border-border-subtle flex flex-wrap items-center justify-between text-xs text-fg-secondary">
             <span>Divisão por categorias:</span>
             <div className="flex items-center gap-2 font-medium">
-              <span className="text-[#DC2626]">Bug: 22</span>
+              <span className="text-[#DC2626]">Bug: {pedidoStats.categories.bug}</span>
               <span>·</span>
-              <span className="text-[#0284C7]">Melhoria: 61</span>
+              <span className="text-[#0284C7]">Melhoria: {pedidoStats.categories.melhoria}</span>
               <span>·</span>
-              <span className="text-[#16A34A]">Nova Func.: 45</span>
+              <span className="text-[#16A34A]">Nova Func.: {pedidoStats.categories.novaFunc}</span>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Progresso do Sprint 12 (5 colunas) */}
+        {/* Card 2: Progresso do Sprint Ativo (5 colunas) */}
         <div className="lg:col-span-5 bg-bg-surface border border-border-subtle rounded-xl p-5 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 rounded bg-brand-action text-white text-xs font-semibold">
-                  Sprint 12
+                  {activeSprintLabel}
                 </span>
                 <StatusBadge status="development" />
               </div>
               <span className="text-xs text-fg-secondary">
-                12–23 out. 2026
+                {activeSprintDateRange}
               </span>
             </div>
 
             <h2 className="text-lg font-bold text-fg-primary">
-              Progresso do Sprint 12
+              Progresso do {activeSprintLabel}
             </h2>
             <p className="text-xs text-fg-secondary mt-0.5 mb-4">
-              5 de 24 pontos concluídos · 2 de 7 user stories concluídas
+              {sprintPointsDone} de {sprintPointsTotal} pontos concluídos · {sprintStoriesDone} de {sprintStories.length} user stories concluídas
             </p>
 
             {/* Barra de Progresso do Sprint */}
@@ -362,33 +472,48 @@ export function OverviewPage() {
             <div className="p-3 bg-bg-page rounded-lg space-y-2 text-xs border border-border-subtle/60 mb-4">
               <div className="flex justify-between">
                 <span className="text-fg-secondary">Capacidade planeada:</span>
-                <span className="font-semibold text-fg-primary">24 / 28 Story Points (86%)</span>
+                <span className="font-semibold text-fg-primary">
+                  {sprintPointsTotal} / {capacityMax} Story Points ({capacityPercent}%)
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-fg-secondary">Dias restantes no ciclo:</span>
-                <span className="font-semibold text-fg-primary">3 dias úteis</span>
+                <span className="text-fg-secondary">Duração do ciclo:</span>
+                <span className="font-semibold text-fg-primary">
+                  {sprintCycleDaysInfo.daysLeft > 0
+                    ? `${sprintCycleDaysInfo.daysLeft} dias restantes`
+                    : `${sprintCycleDaysInfo.totalDays} dias no ciclo`}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-fg-secondary">Velocidade diária média:</span>
-                <span className="font-semibold text-fg-primary">2.8 SP / dia</span>
+                <span className="text-fg-secondary">Ritmo médio entregue:</span>
+                <span className="font-semibold text-fg-primary">{sprintCycleDaysInfo.dailyAvg} SP / dia</span>
               </div>
             </div>
 
             {/* Alerta Crítico de Bloqueios */}
-            <div className="p-3 bg-[#FFE3DC] border border-[#F8C1B7] rounded-lg">
-              <div className="flex items-center gap-2 text-xs font-bold text-brand-action mb-1">
-                <AlertTriangle className="w-4 h-4 shrink-0" />
-                <span>2 bloqueios ativos no Sprint 12</span>
+            {blockedStories.length > 0 ? (
+              <div className="p-3 bg-[#FFE3DC] border border-[#F8C1B7] rounded-lg">
+                <div className="flex items-center gap-2 text-xs font-bold text-brand-action mb-1">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>
+                    {blockedStories.length} {blockedStories.length === 1 ? 'bloqueio ativo' : 'bloqueios ativos'} no {activeSprintLabel}
+                  </span>
+                </div>
+                <ul className="text-xs text-fg-primary space-y-1 pl-6 list-disc">
+                  {blockedStories.map((story) => (
+                    <li key={story.id}>
+                      <strong className="text-brand-action">{story.id}</strong>: {story.title}
+                      {typeof story.impediment === 'string' && story.impediment ? ` (${story.impediment})` : ''}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="text-xs text-fg-primary space-y-1 pl-6 list-disc">
-                <li>
-                  <strong className="text-brand-action">US-31</strong>: Filtrar pedidos (Dependência da API externa)
-                </li>
-                <li>
-                  <strong className="text-brand-action">US-42</strong>: Voto único RNF-SEG-03 (Validação DB)
-                </li>
-              </ul>
-            </div>
+            ) : (
+              <div className="p-3 bg-[#DCFCE7] border border-[#BBF7D0] rounded-lg text-xs text-[#166534] font-semibold flex items-center gap-2">
+                <CheckIcon size={16} />
+                <span>Sem bloqueios ativos no {activeSprintLabel}</span>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 pt-3 border-t border-border-subtle">
@@ -419,67 +544,43 @@ export function OverviewPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-2.5 py-1 rounded bg-[#EDE9FE] text-[#5B21B6] font-medium border border-[#DDD6FE]">
-                Próxima Release: 2026.Q4
+                Próxima Release: {nextRelease?.tituloRelease || 'Por definir'}
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Evento 1 */}
-            <div className="p-3.5 rounded-lg border border-border-subtle bg-bg-page/50 hover:bg-bg-page transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <Avatar name="Sofia Costa" initials="SC" size={28} />
-                <span className="text-[11px] text-fg-secondary">Há 25 min</span>
+            {recentActivityCards.map((card) => (
+              <div
+                key={card.id}
+                className="p-3.5 rounded-lg border border-border-subtle bg-bg-page/50 hover:bg-bg-page transition-colors"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <Avatar name={card.userName} initials={card.initials} size={28} />
+                  <span className="text-[11px] text-fg-secondary">{card.timeLabel}</span>
+                </div>
+                <p className="text-xs font-semibold text-fg-primary">
+                  {card.title}
+                </p>
+                <p className="text-xs text-fg-secondary mt-1 line-clamp-2">
+                  {card.summary}
+                </p>
               </div>
-              <p className="text-xs font-semibold text-fg-primary">
-                Aprovação de Requisito
-              </p>
-              <p className="text-xs text-fg-secondary mt-1">
-                Sofia Costa moveu <strong>US-31</strong> para a Sprint 12 após alinhamento de critérios.
-              </p>
-            </div>
+            ))}
 
-            {/* Evento 2 */}
-            <div className="p-3.5 rounded-lg border border-border-subtle bg-bg-page/50 hover:bg-bg-page transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <Avatar name="Rafael Silva" initials="RS" size={28} />
-                <span className="text-[11px] text-fg-secondary">Há 1h</span>
-              </div>
-              <p className="text-xs font-semibold text-fg-primary">
-                Início de Desenvolvimento
-              </p>
-              <p className="text-xs text-fg-secondary mt-1">
-                Rafael Silva iniciou a implementação de <strong>US-42</strong> (RNF-SEG-03).
-              </p>
-            </div>
-
-            {/* Evento 3 */}
-            <div className="p-3.5 rounded-lg border border-border-subtle bg-bg-page/50 hover:bg-bg-page transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <Avatar name="Inês Martins" initials="IM" size={28} />
-                <span className="text-[11px] text-fg-secondary">Há 3h</span>
-              </div>
-              <p className="text-xs font-semibold text-fg-primary">
-                História Concluída
-              </p>
-              <p className="text-xs text-fg-secondary mt-1">
-                <strong>US-24</strong> (Exportar PDF com ata) passou nos testes e foi marcada como Done.
-              </p>
-            </div>
-
-            {/* Evento 4 - Marco */}
+            {/* Evento 4 - Marco Crítico Dinâmico */}
             <div className="p-3.5 rounded-lg border border-[#FDE68A] bg-[#FEF3C7]/40">
               <div className="flex items-center justify-between mb-2">
                 <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F59E0B] text-white">
-                  MARCO CRÍTICO
+                  {nextRelease?.marcoCritico ? 'MARCO CRÍTICO' : 'RELEASE'}
                 </span>
-                <span className="text-[11px] text-[#7A4D00] font-medium">15 nov. 2026</span>
+                <span className="text-[11px] text-[#7A4D00] font-medium">{nextReleaseDateLabel}</span>
               </div>
               <p className="text-xs font-semibold text-[#7A4D00]">
-                Release 2026.Q4 (Beta)
+                {nextRelease?.tituloRelease || 'Próxima Release'}
               </p>
-              <p className="text-xs text-fg-secondary mt-1">
-                Integração dos módulos de Votação, Matriz de Rastreabilidade e Gestão de Sprints.
+              <p className="text-xs text-fg-secondary mt-1 line-clamp-2">
+                {nextRelease?.descricao || 'Sem descrição de release disponível.'}
               </p>
             </div>
           </div>

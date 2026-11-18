@@ -15,8 +15,6 @@ import { Avatar, Button, StatusBadge } from '../components/common'
 import {
   useAuth,
   ROLES,
-  MOCK_USERS,
-  getRoleCode,
   getRoleLabel,
 } from '../context/AuthContext.jsx'
 import { useData } from '../context/DataContext.jsx'
@@ -41,13 +39,6 @@ function formatMessageTime(dateValue) {
   })
 }
 
-const INTERNAL_FALLBACK_MEMBERS = [
-  MOCK_USERS.PRODUCT_OWNER,
-  MOCK_USERS.SCRUM_MASTER,
-  MOCK_USERS.DEVELOPER,
-  MOCK_USERS.ADMIN,
-]
-
 export function TeamWorkspacePage() {
   const navigate = useNavigate()
   const { currentUser, roleLabel } = useAuth()
@@ -60,6 +51,7 @@ export function TeamWorkspacePage() {
     users = [],
     channels = [],
     messages = {},
+    workspaceConfig = {},
     addMessage,
   } = useData()
 
@@ -82,10 +74,10 @@ export function TeamWorkspacePage() {
     const progressPercent = totalPoints ? Math.round((donePoints / totalPoints) * 100) : 0
     const blockedCount = activeList.filter((s) => Boolean(s.impediment) || s.status === 'blocked').length
     return {
-      sprintLabel: activeSprint?.numeroSprint ? `Sprint ${activeSprint.numeroSprint}` : 'Sprint 12',
+      sprintLabel: activeSprint?.numeroSprint ? `Sprint ${activeSprint.numeroSprint}` : 'Sem sprint ativo',
       dateRange: activeSprint
         ? `${formatShortDate(activeSprint.dataInicio)} – ${formatShortDate(activeSprint.dataFim)}`
-        : '12–23 out. 2026',
+        : 'Sem datas definidas',
       totalStories: activeList.length,
       doneStories: activeList.filter((s) => s.status === 'done').length,
       totalPoints,
@@ -98,30 +90,30 @@ export function TeamWorkspacePage() {
   }, [activeSprint, sprintStories, stories])
 
   const teamMembers = useMemo(() => {
-    const internalUsers = users.filter((u) => u.role !== ROLES.CLIENT && u.roleCode !== 'P04')
+    const internalUsers = users.filter((u) => u.active !== false && u.role !== ROLES.CLIENT && u.roleCode !== 'P04')
     const baseList = internalUsers.length > 0
       ? internalUsers
-      : INTERNAL_FALLBACK_MEMBERS.map((u) => ({
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          role: u.role,
-          roleCode: getRoleCode(u.role),
+      : currentUser && currentUser.role !== ROLES.CLIENT && currentUser.roleCode !== 'P04'
+      ? [{
+          id: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
+          role: currentUser.role,
           active: true,
-        }))
+        }]
+      : []
 
     return baseList.map((member) => {
       const assignedStories = stories.filter((s) => s.assignee?.name === member.name)
       const assignedPoints = assignedStories.reduce((sum, s) => sum + (s.points || 0), 0)
       return {
         ...member,
-        code: member.roleCode || getRoleCode(member.role),
         label: getRoleLabel(member.role),
         assignedStories,
         assignedPoints,
       }
     })
-  }, [users, stories])
+  }, [users, stories, currentUser])
 
   const activeChannel = useMemo(() => {
     return channels.find((c) => c.id === activeChannelId) || channels[0] || {
@@ -191,9 +183,9 @@ export function TeamWorkspacePage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-5">
         <div>
           <div className="flex items-center gap-2 text-xs text-fg-secondary mb-1">
-            <span>Plataforma de Produto</span>
+            <span>{workspaceConfig?.projectName || 'Plataforma de Produto'}</span>
             <span>/</span>
-            <span className="font-medium text-fg-primary">Giro Dev Team</span>
+            <span className="font-medium text-fg-primary">{workspaceConfig?.teamName || 'Equipa Principal'}</span>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl lg:text-3xl font-bold text-fg-primary tracking-tight">
@@ -288,7 +280,7 @@ export function TeamWorkspacePage() {
             </div>
 
             <span className="text-fg-secondary">
-              Sessão atual: <strong className="text-fg-primary">{currentUser?.name || 'Sofia Costa'}</strong> ({roleLabel})
+              Sessão atual: <strong className="text-fg-primary">{currentUser?.name || 'Utilizador'}</strong> ({roleLabel})
             </span>
           </div>
         </section>
@@ -300,7 +292,7 @@ export function TeamWorkspacePage() {
               <span className="text-[11px] font-bold uppercase tracking-wider text-brand-action">
                 Próximo Ritual Scrum
               </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-[#F8C1B7] text-[11px] font-semibold text-fg-primary">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-surface border border-brand-primary/30 text-[11px] font-semibold text-fg-primary">
                 <Clock className="w-3 h-3 text-brand-primary" aria-hidden="true" />
                 Hoje · 09:30
               </span>
@@ -310,11 +302,15 @@ export function TeamWorkspacePage() {
               Daily Scrum · Sincronização da Equipa
             </h2>
             <p className="text-xs text-fg-secondary leading-relaxed">
-              Facilitada por <strong>Inês Martins (P02 · Scrum Master)</strong>. Alinhamento sobre conclusão da US-31, revisão de concorrência da US-42 e carga para o fecho do {sprintMetrics.sprintLabel}.
+              Facilitada por{' '}
+              <strong>
+                {teamMembers.find((m) => m.role === ROLES.SCRUM_MASTER)?.name || 'Scrum Master'} (Scrum Master)
+              </strong>
+              . Acompanhamento de {sprintMetrics.totalStories} história(s) e {sprintMetrics.blockedCount} bloqueio(s) no ciclo atual ({sprintMetrics.sprintLabel}).
             </p>
           </div>
 
-          <div className="flex items-center justify-between pt-2 border-t border-[#F8C1B7]/60 text-xs">
+          <div className="flex items-center justify-between pt-2 border-t border-brand-primary/30 text-xs">
             <span className="text-fg-secondary">Duração prevista: 15 min</span>
             <button
               type="button"
@@ -327,14 +323,11 @@ export function TeamWorkspacePage() {
         </section>
       </div>
 
-      {/* 3. Área Principal: Canais + Feed (8 cols) e Equipa + Carga (4 cols) */}
+      {/* 3. Área Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Coluna Esquerda: Canais de Colaboração e Atividade Recente */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Painel de Canais e Mensagens */}
           <section className="bg-bg-surface border border-border-subtle rounded-2xl shadow-xs overflow-hidden">
-            {/* Barra de Canais */}
-            <div className="px-5 py-4 border-b border-border-subtle bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="px-5 py-4 border-b border-border-subtle bg-bg-surface flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-brand-primary" aria-hidden="true" />
                 <h2 className="text-base font-bold text-fg-primary">
@@ -363,7 +356,7 @@ export function TeamWorkspacePage() {
                     >
                       <Hash className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>{channel.name}</span>
-                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/80 text-fg-primary">
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-bg-surface/90 text-fg-primary">
                         {count}
                       </span>
                     </button>
@@ -381,7 +374,7 @@ export function TeamWorkspacePage() {
             </div>
 
             {/* Lista de Mensagens */}
-            <div className="p-5 space-y-3 max-h-[360px] overflow-y-auto bg-white">
+            <div className="p-5 space-y-3 max-h-[360px] overflow-y-auto bg-bg-surface">
               {channelMessages.length === 0 ? (
                 <div className="p-8 text-center rounded-xl border border-dashed border-border-subtle bg-bg-page/40">
                   <p className="text-sm font-semibold text-fg-primary">
@@ -445,7 +438,7 @@ export function TeamWorkspacePage() {
                   }}
                   placeholder={`Enviar nota para #${activeChannel.name}...`}
                   aria-label={`Mensagem para #${activeChannel.name}`}
-                  className="flex-1 h-11 rounded-lg border border-border-subtle bg-white px-3.5 text-sm text-fg-primary placeholder:text-fg-disabled-muted focus:outline-none focus:ring-2 focus:ring-border-focusRing"
+                  className="flex-1 h-11 rounded-lg border border-border-subtle bg-bg-surface px-3.5 text-sm text-fg-primary placeholder:text-fg-disabled-muted focus:outline-none focus:ring-2 focus:ring-border-focusRing"
                 />
                 <Button
                   type="submit"
@@ -487,7 +480,7 @@ export function TeamWorkspacePage() {
                     className="p-3.5 rounded-xl border border-border-subtle bg-bg-page/50 hover:bg-[#FFE3DC]/25 hover:border-[#F8C1B7] transition-all text-left space-y-1.5 cursor-pointer"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-white border border-border-subtle text-brand-action">
+                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-bg-surface border border-border-subtle text-brand-action">
                         {act.badge}
                       </span>
                       <StatusBadge status={act.status} />
@@ -541,8 +534,8 @@ export function TeamWorkspacePage() {
                     className={cn(
                       'w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer',
                       isSelected
-                        ? 'border-brand-primary bg-[#FFE3DC]/45 ring-1 ring-brand-primary'
-                        : 'border-border-subtle bg-white hover:bg-bg-page'
+                        ? 'border-brand-primary bg-brand-selection/60 ring-1 ring-brand-primary'
+                        : 'border-border-subtle bg-bg-surface hover:bg-bg-page'
                     )}
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -556,8 +549,8 @@ export function TeamWorkspacePage() {
                           <span className="text-sm font-bold text-fg-primary truncate">
                             {member.name}
                           </span>
-                          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-bg-page border border-border-subtle text-fg-secondary">
-                            {member.code}
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-bg-page border border-border-subtle text-fg-secondary">
+                            {member.roleLabel || getRoleLabel(member.role)}
                           </span>
                         </div>
                         <p className="text-xs text-fg-secondary truncate">

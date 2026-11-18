@@ -1,7 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom'
-import { ShieldAlert, LogIn, ArrowLeft, RefreshCw } from 'lucide-react'
+import { ShieldAlert, LogIn, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { useModal } from '../../context/ModalContext.jsx'
 import { Button } from '../common/Button.jsx'
 
 /**
@@ -17,20 +16,19 @@ import { Button } from '../common/Button.jsx'
 export function ProtectedRoute({ allowedRoles = [], children }) {
   const {
     isAuthenticated,
-    currentUser,
     role,
     roleLabel,
     isLoggedOutDueToInactivity,
+    logout,
   } = useAuth()
-  const { openRoleSwitcher } = useModal()
   const navigate = useNavigate()
 
   // 1. Caso de Sessão Expirada por Inatividade (RNF-SEG-01) ou Não Autenticado
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-bg-page flex items-center justify-center p-6 select-none">
-        <div className="max-w-md w-full bg-white rounded-2xl border border-border-subtle p-8 shadow-md text-center space-y-6">
-          <div className="w-16 h-16 rounded-2xl bg-[#FFE3DC] text-brand-action mx-auto flex items-center justify-center">
+        <div className="max-w-md w-full bg-bg-surface rounded-2xl border border-border-subtle p-8 shadow-md text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-brand-selection text-brand-action mx-auto flex items-center justify-center">
             <ShieldAlert className="w-8 h-8 text-brand-primary" aria-hidden="true" />
           </div>
 
@@ -42,15 +40,8 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
             </h1>
             <p className="text-sm text-fg-secondary">
               {isLoggedOutDueToInactivity
-                ? 'Por motivos de segurança (RNF-SEG-01), a sua sessão foi terminada automaticamente após 60 minutos de ausência.'
+                ? 'Por motivos de segurança, a sua sessão foi terminada automaticamente após 60 minutos de ausência.'
                 : 'É necessário ter sessão iniciada para aceder a esta funcionalidade do Giro.'}
-            </p>
-          </div>
-
-          <div className="p-3 bg-bg-page rounded-xl text-left text-xs space-y-1">
-            <p className="font-semibold text-fg-primary">Restaurar sessão de teste:</p>
-            <p className="text-fg-secondary">
-              Clique abaixo para retomar sessão imediatamente como <strong>{currentUser?.name || 'Sofia Costa'}</strong>.
             </p>
           </div>
 
@@ -61,15 +52,7 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
               icon={LogIn}
               onClick={() => navigate('/login')}
             >
-              Iniciar Sessão Novamente
-            </Button>
-            <Button
-              variant="secondary"
-              className="w-full"
-              icon={RefreshCw}
-              onClick={() => navigate('/login')}
-            >
-              Entrar como Sofia Costa (PO)
+              Iniciar Sessão
             </Button>
           </div>
         </div>
@@ -84,15 +67,15 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
   if (!hasRequiredRole) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-6 select-none">
-        <div className="max-w-lg w-full bg-white rounded-2xl border border-border-subtle p-8 shadow-sm text-center space-y-6">
+        <div className="max-w-lg w-full bg-bg-surface rounded-2xl border border-border-subtle p-8 shadow-sm text-center space-y-6">
           {/* Ícone de Acesso Negado */}
-          <div className="w-16 h-16 rounded-2xl bg-[#FEE2E2] text-[#DC2626] mx-auto flex items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-[#FEE2E2] dark:bg-[#451B1B] text-[#DC2626] dark:text-[#FCA5A5] mx-auto flex items-center justify-center">
             <ShieldAlert className="w-8 h-8" aria-hidden="true" />
           </div>
 
           {/* Mensagem Explicativa */}
           <div className="space-y-2">
-            <div className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FEE2E2] text-[#DC2626]">
+            <div className="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FEE2E2] dark:bg-[#451B1B] text-[#DC2626] dark:text-[#FCA5A5]">
               403 · Acesso Restrito
             </div>
             <h2 className="text-2xl font-bold text-fg-primary">
@@ -117,7 +100,7 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
             </div>
           </div>
 
-          {/* Ações: Voltar ao Início ou Alternar Papel */}
+          {/* Ações: Voltar ao Início ou Iniciar sessão com outra conta */}
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <Button
               variant="secondary"
@@ -130,9 +113,12 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
             <Button
               variant="primary"
               className="w-full sm:w-1/2"
-              onClick={openRoleSwitcher}
+              onClick={() => {
+                logout()
+                navigate('/login')
+              }}
             >
-              Alternar Papel
+              Iniciar sessão com outra conta
             </Button>
           </div>
         </div>

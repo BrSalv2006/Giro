@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-  /* Marca e Ação (Tokens Figma) */
+  /* Marca e Ação */
   --color-brand-primary: #E6533D;
   --color-brand-action: #B93826;
   --color-brand-hover: #9A2C1E;
@@ -58,6 +60,50 @@
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   --radius-default: 8px;
   --radius-lg: 8px;
+}
+
+.dark {
+  --color-brand-primary: #F0644E;
+  --color-brand-action: #E04F3A;
+  --color-brand-hover: #C83E2B;
+  --color-brand-pressed: #A82E1E;
+  --color-brand-selection: #3A1D19;
+
+  --color-bg-page: #0F1117;
+  --color-bg-surface: #181B22;
+  --color-bg-disabled: #FFFFFF14;
+  --color-bg-disabled-emphasis: #272B36;
+
+  --color-fg-primary: #F3F4F6;
+  --color-fg-secondary: #9CA3AF;
+  --color-fg-disabled: #6B7280CC;
+  --color-fg-disabled-muted: #6B7280;
+  --color-fg-icon: #E5E7EB;
+
+  --color-border-subtle: #2D3240;
+  --color-border-control: #64748B;
+  --color-border-control-hover: #94A3B8;
+  --color-border-disabled: #374151;
+  --color-border-focus-ring: #60A5FA;
+  --color-border-focusRing: #60A5FA;
+
+  --color-feedback-error-border: #EF4444;
+  --color-feedback-errorBorder: #EF4444;
+  --color-feedback-error-fg: #FCA5A5;
+  --color-feedback-errorFg: #FCA5A5;
+  --color-feedback-error-bg: #3A1D19;
+  --color-feedback-errorBg: #3A1D19;
+
+  --color-status-pending-bg: #272B36;
+  --color-status-pending-text: #E5E7EB;
+  --color-status-analysis-bg: #453009;
+  --color-status-analysis-text: #FCD34D;
+  --color-status-development-bg: #2E1F4D;
+  --color-status-development-text: #C4B5FD;
+  --color-status-complete-bg: #123823;
+  --color-status-complete-text: #86EFAC;
+  --color-status-rejected-bg: #451B1B;
+  --color-status-rejected-text: #FCA5A5;
 }
 
 /* Regras Globais */

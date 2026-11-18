@@ -6,15 +6,12 @@ import { cn } from '../../utils/cn.js'
  * Variantes de estilo para o botão baseados nos design tokens do Figma GIRO.
  */
 const variantStyles = {
-  // Primário: Vermelho sólido (#B93826) com texto branco
   primary:
     'bg-brand-action hover:bg-brand-hover active:bg-brand-pressed text-white shadow-xs focus-visible:ring-border-focusRing',
-  // Secundário: Fundo branco, contorno preto (#000000), texto preto, hover sutil com tint vermelho (#B938261A)
   secondary:
-    'bg-white border border-black text-black hover:bg-[#B938261A] active:bg-[#B9382633] focus-visible:ring-border-focusRing',
-  // Terciário: Fantasma / transparente, hover neutro (#0000000D)
+    'bg-bg-surface border border-border-control text-fg-primary hover:bg-brand-selection active:bg-brand-selection/80 focus-visible:ring-border-focusRing',
   tertiary:
-    'bg-transparent text-fg-primary hover:bg-[#0000000D] active:bg-[#0000001A] focus-visible:ring-border-focusRing',
+    'bg-transparent text-fg-primary hover:bg-bg-disabled active:bg-bg-disabled-emphasis focus-visible:ring-border-focusRing',
 }
 
 /**

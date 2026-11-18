@@ -340,3 +340,57 @@ test('DA-00 transitions APROVADO -> PLANEADO on updateStory sprint assignment an
   assert.ok(logs.some((l) => l.acao === 'ALTERACAO_ESTADO_PEDIDO' && l.detalhes?.idPedido === pedidoA.idPedido && l.detalhes?.estadoNovo === 'PLANEADO'));
   assert.ok(logs.some((l) => l.acao === 'ALTERACAO_ESTADO_PEDIDO' && l.detalhes?.idPedido === pedidoB.idPedido && l.detalhes?.estadoNovo === 'EM_DESENVOLVIMENTO'));
 });
+
+test('Sprint lifecycle HTTP routes enforce RBAC (P01/P02/P05) and roll-over incomplete stories', async (t) => {
+  const { server, base } = await setup();
+  t.after(() => server.close());
+
+  const smReg = await registerUser(base, { nome: 'Scrum Master', email: 'sm-sprint@test.local', password: 'password123', papel: 'P02' });
+  const devReg = await registerUser(base, { nome: 'Programador', email: 'dev-sprint@test.local', password: 'password123', papel: 'P03' });
+  const clientReg = await registerUser(base, { nome: 'Cliente', email: 'cli-sprint@test.local', password: 'password123' });
+
+  const smToken = smReg.body.token;
+  const devToken = devReg.body.token;
+  const clientToken = clientReg.body.token;
+
+  // P03 & P04 cannot create/edit/delete sprints
+  assert.equal((await apiJson(base, '/api/v1/sprints', {
+    method: 'POST', token: devToken, body: { numeroSprint: 1, dataInicio: '2026-11-01', dataFim: '2026-11-15' },
+  })).status, 403);
+  assert.equal((await apiJson(base, '/api/v1/sprints', {
+    method: 'POST', token: clientToken, body: { numeroSprint: 1, dataInicio: '2026-11-01', dataFim: '2026-11-15' },
+  })).status, 403);
+
+  const s1 = (await apiJson(base, '/api/v1/sprints', {
+    method: 'POST', token: smToken, body: { numeroSprint: 1, dataInicio: '2026-11-01', dataFim: '2026-11-14', capacidadeMaxima: 20, estado: 'ATIVO' },
+  })).body;
+  assert.ok(s1.idSprint);
+
+  const ped = (await apiJson(base, '/api/v1/pedidos', {
+    method: 'POST', token: clientToken, body: { titulo: 'Pedido Sprint', descricao: 'Testar fecho de sprint', categoria: 'MELHORIA' },
+  })).body;
+  const story = (await apiJson(base, '/api/v1/user-stories', {
+    method: 'POST', token: smToken, body: { codigoUs: 'US401', titulo: 'US Pendente', descricao: 'Desc', criteriosAceitacao: 'OK', idPedido: ped.idPedido, idSprint: s1.idSprint },
+  })).body.item;
+
+  // Dev cannot conclude sprint
+  assert.equal((await apiJson(base, `/api/v1/sprints/${s1.idSprint}`, {
+    method: 'PATCH', token: devToken, body: { estado: 'CONCLUIDO' },
+  })).status, 403);
+
+  // SM concludes sprint -> moves incomplete story back to BACKLOG
+  const closed = await apiJson(base, `/api/v1/sprints/${s1.idSprint}`, {
+    method: 'PATCH', token: smToken, body: { estado: 'CONCLUIDO', incompletePolicy: 'BACKLOG' },
+  });
+  assert.equal(closed.status, 200);
+  assert.equal(closed.body.estado, 'CONCLUIDO');
+
+  const stories = (await apiJson(base, '/api/v1/user-stories', { token: devToken })).body;
+  const refreshedStory = stories.find((s) => s.idTarefa === story.idTarefa);
+  assert.equal(refreshedStory.idSprint, null);
+  assert.equal(refreshedStory.estadoTecnico, 'BACKLOG');
+
+  // Delete sprint works for SM
+  const deleted = await apiJson(base, `/api/v1/sprints/${s1.idSprint}`, { method: 'DELETE', token: smToken });
+  assert.equal(deleted.status, 204);
+});

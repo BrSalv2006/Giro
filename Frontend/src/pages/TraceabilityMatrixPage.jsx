@@ -106,7 +106,7 @@ export function TraceabilityMatrixPage() {
         <MetricCard
           title="Requisitos na matriz"
           value={totalReqs}
-          subtitle="RNF e RF do projeto"
+          subtitle="Pedidos e funcionalidades"
           icon={<FileCheck className="w-5 h-5 text-brand-action" />}
         />
 
@@ -344,13 +344,13 @@ export function TraceabilityMatrixPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <span className="font-bold text-fg-primary">Critérios de Aceitação Verificáveis:</span>
-                    <p className="text-fg-secondary leading-relaxed bg-white p-2.5 rounded-lg border border-border-subtle">
+                    <p className="text-fg-secondary leading-relaxed bg-bg-surface p-2.5 rounded-lg border border-border-subtle">
                       {item.criteria}
                     </p>
                   </div>
                   <div className="space-y-1">
                     <span className="font-bold text-fg-primary">Ficheiros de Código Associados:</span>
-                    <div className="bg-white p-2.5 rounded-lg border border-border-subtle space-y-1">
+                    <div className="bg-bg-surface p-2.5 rounded-lg border border-border-subtle space-y-1">
                       {item.codeRefs.length > 0 ? (
                         item.codeRefs.map((ref) => (
                           <div key={ref} className="flex items-center gap-1.5 font-mono text-[11px] text-brand-action">

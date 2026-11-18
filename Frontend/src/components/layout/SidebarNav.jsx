@@ -12,7 +12,16 @@ import {
 } from 'lucide-react'
 import { Avatar } from '../common/Avatar.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
+import { useData } from '../../context/DataContext.jsx'
 import { cn } from '../../utils/cn.js'
+
+function useSafeData() {
+  try {
+    return useData() || {}
+  } catch {
+    return {}
+  }
+}
 
 /**
  * Estrutura de Navegação do GIRO com títulos exatos do Figma frame 325:1118
@@ -56,11 +65,15 @@ const NAV_SECTIONS = [
  */
 export function SidebarNav({ className }) {
   const { permissions } = useAuth()
+  const { users = [], activeSprintLabel = 'Sem sprint ativo', workspaceConfig } = useSafeData()
+  const teamName = workspaceConfig?.teamName || 'Equipa Principal'
+  const internalMembersCount =
+    users.filter((u) => u.active !== false && u.role !== 'CLIENT' && u.roleCode !== 'P04').length
 
   return (
     <aside
       className={cn(
-        'w-[224px] shrink-0 bg-white border-r border-border-subtle flex flex-col justify-between select-none h-full',
+        'w-[224px] shrink-0 bg-bg-surface border-r border-border-subtle flex flex-col justify-between select-none h-full',
         className
       )}
       aria-label="Navegação Principal"
@@ -90,8 +103,8 @@ export function SidebarNav({ className }) {
                       cn(
                         'group flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all relative',
                         isActive
-                          ? 'bg-[#FFE3DC] text-brand-action font-semibold shadow-xs'
-                          : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-page active:bg-[#E4E5EA]',
+                          ? 'bg-brand-selection text-brand-action font-semibold shadow-xs'
+                          : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-page active:bg-bg-disabled-emphasis',
                         isRestrictedForClient && 'opacity-60'
                       )
                     }
@@ -141,24 +154,24 @@ export function SidebarNav({ className }) {
         <div className="p-2.5 rounded-xl bg-bg-page border border-border-subtle/60 flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <Avatar
-              name="Giro Dev"
+              name={teamName}
               size={32}
               shape="square"
-              className="bg-[#FFE3DC] text-brand-action border-[#F8C1B7]"
+              className="bg-brand-selection text-brand-action border-brand-primary/30"
             />
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-fg-primary truncate">
-                Giro Dev Team
+                {teamName}
               </span>
               <span className="text-[11px] text-fg-secondary truncate">
-                4 membros · Sprint 12
+                {internalMembersCount > 0 ? `${internalMembersCount} ${internalMembersCount === 1 ? 'membro' : 'membros'} · ` : ''}{activeSprintLabel}
               </span>
             </div>
           </div>
 
           <Link
             to="/definicoes"
-            className="p-1.5 rounded-lg text-fg-secondary hover:text-fg-primary hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focusRing shrink-0"
+            className="p-1.5 rounded-lg text-fg-secondary hover:text-fg-primary hover:bg-bg-surface transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focusRing shrink-0"
             title="Definições da equipa"
             aria-label="Definições da equipa"
           >

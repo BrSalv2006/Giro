@@ -76,6 +76,7 @@ function hashString(str) {
  * Avatar Component
  *
  * @param {string} name - User display name
+ * @param {string} [initials] - Optional explicit initials override
  * @param {string} src - Image URL
  * @param {24|28|32|36|40|48} size - Pixel size preset (default: 36)
  * @param {'circle'|'square'} shape - Shape style (default: 'circle')
@@ -84,6 +85,7 @@ function hashString(str) {
  */
 export function Avatar({
   name = '',
+  initials: customInitials,
   src,
   size = 36,
   shape = 'circle',
@@ -94,7 +96,10 @@ export function Avatar({
   const [failedSrc, setFailedSrc] = useState(null)
 
   const sizeStyle = SIZE_MAP[size] || SIZE_MAP[36]
-  const initials = useMemo(() => getInitials(name), [name])
+  const initials = useMemo(
+    () => (customInitials ? String(customInitials).trim().toUpperCase() : getInitials(name)),
+    [customInitials, name]
+  )
 
   const colorScheme = useMemo(() => {
     if (!name) return COLOR_VARIANTS[5]
@@ -110,8 +115,8 @@ export function Avatar({
     <div
       className={cn(
         'relative inline-flex shrink-0 select-none items-center justify-center font-semibold tracking-wide',
-        sizeStyle.container,
-        className
+        shapeClasses,
+        sizeStyle.container
       )}
       role="img"
       aria-label={name ? `Avatar de ${name}` : 'Avatar de utilizador'}
@@ -123,7 +128,8 @@ export function Avatar({
           shapeClasses,
           hasValidImage
             ? 'border-border-subtle bg-bg-surface'
-            : cn(colorScheme.bg, colorScheme.text, colorScheme.border)
+            : cn(colorScheme.bg, colorScheme.text, colorScheme.border),
+          className
         )}
       >
         {hasValidImage ? (

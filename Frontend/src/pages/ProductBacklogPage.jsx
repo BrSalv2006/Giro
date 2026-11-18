@@ -4,14 +4,16 @@ import {
   TextField,
   Select,
   Avatar,
+  SprintTimelineStrip,
   PlusIcon,
   SearchIcon,
 } from '../components/common'
 import {
   MoveUp,
   MoveDown,
-  CheckCircle2,
+  Calendar,
 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext.jsx'
 import { useData } from '../context/DataContext.jsx'
 import { useModal } from '../context/ModalContext.jsx'
 
@@ -33,11 +35,17 @@ function useSafeModal() {
 
 /**
  * ProductBacklogPage Component
- * Conforme Figma frame 326:4341 ("Product Backlog", 1600x1200)
  */
 export function ProductBacklogPage() {
+  const { permissions } = useAuth()
   const dataContext = useSafeData()
   const modalContext = useSafeModal()
+
+  const canManageLifecycle = Boolean(permissions?.canManageSprintLifecycle)
+  const activeSprint = dataContext.activeSprint || null
+  const activeSprintLabel = dataContext.activeSprintLabel || 'Sem sprint ativo'
+  const activeSprintCode = dataContext.activeSprintCode || null
+  const sprints = useMemo(() => dataContext.sprints || [], [dataContext.sprints])
 
   const [customOrderIds, setCustomOrderIds] = useState([])
   const [sortByEffort, setSortByEffort] = useState(false)
@@ -46,8 +54,13 @@ export function ProductBacklogPage() {
     const base = (dataContext.stories || []).map((s) => ({
       ...s,
       code: s.id,
-      targetSprint: s.target || (s.sprint === 'sprint-12' ? 'Sprint 12' : 'Backlog do produto'),
-      epic: s.epic || 'EP02: Backlog & IA',
+      targetSprint:
+        s.target && s.target !== 'Backlog do produto'
+          ? s.target
+          : activeSprintCode && s.sprint === activeSprintCode
+          ? activeSprintLabel
+          : 'Backlog do produto',
+      epic: s.epic || 'Backlog & Priorização',
     }))
     if (sortByEffort) {
       return [...base].sort((a, b) => (b.points || 0) - (a.points || 0))
@@ -61,14 +74,39 @@ export function ProductBacklogPage() {
       })
     }
     return base
-  }, [dataContext.stories, customOrderIds, sortByEffort])
+  }, [dataContext.stories, customOrderIds, sortByEffort, activeSprintCode, activeSprintLabel])
 
   const [searchTerm, setSearchTerm] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('ALL')
   const [sprintFilter, setSprintFilter] = useState('ALL')
   const [notice, setNotice] = useState('')
 
-  // Reordenação de histórias no Backlog
+  const sprintFilterOptions = useMemo(() => {
+    const opts = [{ value: 'ALL', label: 'Todos os destinos' }]
+    const seen = new Set()
+    sprints.forEach((sp) => {
+      const lbl = `Sprint ${sp.numeroSprint}`
+      if (!seen.has(lbl)) {
+        seen.add(lbl)
+        const suffix = sp.estado === 'ATIVO' ? 'Em curso' : sp.estado === 'PLANEADO' ? 'Planeado' : sp.estado === 'CONCLUIDO' ? 'Concluído' : 'Cancelado'
+        opts.push({ value: lbl, label: `${lbl} (${suffix})` })
+      }
+    })
+    opts.push({ value: 'Backlog do produto', label: 'Backlog do produto' })
+    return opts
+  }, [sprints])
+
+  const assignTargetOptions = useMemo(() => {
+    const openSprints = sprints.filter((sp) => !['CONCLUIDO', 'CANCELADO'].includes(sp.estado))
+    return [
+      { value: 'BACKLOG', label: 'Backlog do produto' },
+      ...openSprints.map((sp) => ({
+        value: sp.idSprint,
+        label: `Sprint ${sp.numeroSprint} (${sp.estado === 'ATIVO' ? 'Em curso' : 'Planeado'})`,
+      })),
+    ]
+  }, [sprints])
+
   const moveItem = (index, direction) => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1
     if (targetIndex < 0 || targetIndex >= stories.length) return
@@ -81,16 +119,17 @@ export function ProductBacklogPage() {
     setTimeout(() => setNotice(''), 3000)
   }
 
-  // Mover story para Sprint 12
-  const handleAssignSprint = async (storyId, newSprint) => {
+  const handleAssignSprint = async (storyId, selectedValue) => {
     try {
-      if (dataContext.updateStory) {
-        await dataContext.updateStory(storyId, {
-          target: newSprint,
-          sprint: newSprint === 'Sprint 12' ? 'sprint-12' : null,
-        })
+      if (!dataContext.updateStory) return
+      if (selectedValue === 'BACKLOG') {
+        await dataContext.updateStory(storyId, { idSprint: null })
+        setNotice(`✓ ${storyId} movido para o Backlog do produto.`)
+      } else {
+        const sp = sprints.find((s) => s.idSprint === selectedValue)
+        await dataContext.updateStory(storyId, { idSprint: selectedValue })
+        setNotice(`✓ ${storyId} atribuído ao ${sp ? `Sprint ${sp.numeroSprint}` : 'Sprint'}.`)
       }
-      setNotice(`✓ ${storyId} atribuído a ${newSprint}.`)
       setTimeout(() => setNotice(''), 3000)
     } catch (assignError) {
       setNotice(assignError.message || 'Não foi possível atribuir a história ao sprint.')
@@ -98,7 +137,6 @@ export function ProductBacklogPage() {
     }
   }
 
-  // Filtragem
   const filteredStories = useMemo(() => {
     return stories.filter((s) => {
       if (priorityFilter !== 'ALL' && s.priority !== priorityFilter) {
@@ -123,36 +161,32 @@ export function ProductBacklogPage() {
 
   return (
     <div className="min-h-full bg-bg-page p-6 lg:p-8 space-y-6">
-      {/* 1. Introdução / Cabeçalho da Página (Figma 326:4341) */}
+      {/* 1. Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-5">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-fg-primary tracking-tight">
             Product Backlog
           </h1>
           <p className="text-sm text-fg-secondary mt-1 max-w-2xl">
-            Organize histórias, prioridades e dependências antes de planear os sprints.
+            Organize histórias, prioridades e atribua entregas diretamente aos Sprints planeados ou ativos.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setNotice('Sprint 12 concluído com sucesso. Histórias pendentes arquivadas.')
-              setTimeout(() => setNotice(''), 3500)
-            }}
-          >
-            Concluir sprint
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {canManageLifecycle && (
+            <Button
+              variant="secondary"
+              icon={<Calendar className="w-4 h-4" />}
+              onClick={() => modalContext.openSprintModal?.(null)}
+            >
+              Criar sprint
+            </Button>
+          )}
 
           <Button
             variant="primary"
             icon={<PlusIcon size={16} />}
-            onClick={() => {
-              if (modalContext.openCreateStoryModal) {
-                modalContext.openCreateStoryModal()
-              }
-            }}
+            onClick={() => modalContext.openCreateStoryModal?.()}
           >
             Criar user story
           </Button>
@@ -161,19 +195,36 @@ export function ProductBacklogPage() {
 
       {/* Alerta de Feedback */}
       {notice && (
-        <div className="p-3 bg-[#DCFCE7] border border-[#22C55E] text-[#166534] rounded-lg text-xs font-semibold flex items-center justify-between animate-fadeIn">
+        <div className="p-3 bg-[#DCFCE7] dark:bg-[#123823] border border-[#22C55E]/50 text-[#166534] dark:text-[#86EFAC] rounded-lg text-xs font-semibold flex items-center justify-between">
           <span>{notice}</span>
-          <button onClick={() => setNotice('')} className="underline hover:font-bold">
+          <button onClick={() => setNotice('')} className="underline hover:font-bold cursor-pointer">
             Dispensar
           </button>
         </div>
       )}
 
-      {/* 2. Barra de Resumo e Filtros (Figma 326:4341) */}
+      {/* Timeline Compacta de Sprints */}
+      <SprintTimelineStrip
+        compact
+        sprints={sprints}
+        stories={dataContext.stories || []}
+        selectedSprintId={sprints.find((sp) => `Sprint ${sp.numeroSprint}` === sprintFilter)?.idSprint || null}
+        onSelectSprint={(id) => {
+          const sp = sprints.find((s) => s.idSprint === id)
+          if (!sp) return
+          const label = `Sprint ${sp.numeroSprint}`
+          setSprintFilter((prev) => (prev === label ? 'ALL' : label))
+        }}
+        onEditSprint={(sp) => modalContext.openSprintModal?.(sp)}
+        onCreateSprint={() => modalContext.openSprintModal?.(null)}
+        canManage={canManageLifecycle}
+      />
+
+      {/* 2. Barra de Resumo e Filtros */}
       <div className="bg-bg-surface border border-border-subtle rounded-xl p-4 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-fg-primary">
-            <span className="px-2.5 py-1 rounded bg-[#FFE3DC] text-brand-action font-bold">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-fg-primary">
+            <span className="px-2.5 py-1 rounded bg-brand-selection text-brand-action font-bold">
               {stories.length} user stories disponíveis
             </span>
             <span className="text-fg-secondary">·</span>
@@ -197,12 +248,11 @@ export function ProductBacklogPage() {
           </div>
         </div>
 
-        {/* Linha de Controlos */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-border-subtle/60">
           <div>
             <TextField
               icon={<SearchIcon size={16} />}
-              placeholder="Pesquisar por código, título ou épico..."
+              placeholder="Pesquisar por código, título ou área..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -223,12 +273,7 @@ export function ProductBacklogPage() {
 
           <div>
             <Select
-              options={[
-                { value: 'ALL', label: 'Todos os destinos' },
-                { value: 'Sprint 12', label: 'Sprint 12 (Corrente)' },
-                { value: 'Sprint 13', label: 'Sprint 13 (Planeado)' },
-                { value: 'Backlog do produto', label: 'Backlog do produto' },
-              ]}
+              options={sprintFilterOptions}
               value={sprintFilter}
               onChange={(val) => setSprintFilter(val)}
             />
@@ -236,7 +281,7 @@ export function ProductBacklogPage() {
         </div>
       </div>
 
-      {/* 3. Tabela Rica e Interativa de Product Backlog */}
+      {/* 3. Tabela de Product Backlog */}
       <div className="bg-bg-surface border border-border-subtle rounded-xl shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -244,139 +289,133 @@ export function ProductBacklogPage() {
               <tr className="bg-bg-page/70 border-b border-border-subtle text-fg-secondary uppercase tracking-wider font-semibold">
                 <th className="py-3 px-3 w-12 text-center">Ordem</th>
                 <th className="py-3 px-3">User Story</th>
-                <th className="py-3 px-3">Épico</th>
+                <th className="py-3 px-3">Área</th>
                 <th className="py-3 px-3">Prioridade</th>
                 <th className="py-3 px-3 text-center">Esforço (SP)</th>
                 <th className="py-3 px-3">Responsável</th>
                 <th className="py-3 px-3">Sprint Destino</th>
-                <th className="py-3 px-3 text-right">Ações</th>
+                <th className="py-3 px-3 text-right">Atribuir Sprint</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle/60">
-              {filteredStories.map((story, index) => {
-                const isSprint12 = story.targetSprint === 'Sprint 12'
+              {filteredStories.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-fg-secondary">
+                    Nenhuma User Story encontrada com os filtros aplicados.
+                  </td>
+                </tr>
+              ) : (
+                filteredStories.map((story, index) => {
+                  const isActiveSprint = story.targetSprint === activeSprintLabel && activeSprint
+                  const currentSprintObj = sprints.find(
+                    (sp) => sp.idSprint === story.sprintId || `Sprint ${sp.numeroSprint}` === story.targetSprint
+                  )
 
-                return (
-                  <tr
-                    key={story.id}
-                    className="hover:bg-bg-page/50 transition-colors group"
-                  >
-                    {/* Botões de Reordenação */}
-                    <td className="py-3 px-3 text-center">
-                      <div className="flex flex-col items-center justify-center gap-0.5 opacity-60 group-hover:opacity-100">
-                        <button
-                          type="button"
-                          disabled={index === 0}
-                          onClick={() => moveItem(index, 'up')}
-                          className="p-0.5 hover:bg-border-subtle/50 rounded disabled:opacity-20"
-                          title="Subir prioridade"
-                        >
-                          <MoveUp className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={index === filteredStories.length - 1}
-                          onClick={() => moveItem(index, 'down')}
-                          className="p-0.5 hover:bg-border-subtle/50 rounded disabled:opacity-20"
-                          title="Descer prioridade"
-                        >
-                          <MoveDown className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-
-                    {/* Código e Título */}
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-brand-action bg-[#FFE3DC] px-1.5 py-0.5 rounded text-[11px]">
-                          {story.code}
-                        </span>
-                        <span className="font-semibold text-fg-primary max-w-md">
-                          {story.title}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Épico */}
-                    <td className="py-3 px-3">
-                      <span className="text-[11px] text-fg-secondary font-medium">
-                        {story.epic}
-                      </span>
-                    </td>
-
-                    {/* Prioridade */}
-                    <td className="py-3 px-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                          story.priority === 'Alta'
-                            ? 'bg-[#FFE3DC] text-[#B93826] border border-[#F8C1B7]'
-                            : story.priority === 'Média'
-                            ? 'bg-[#FEF3C7] text-[#7A4D00] border border-[#FDE68A]'
-                            : 'bg-[#EDE9FE] text-[#5B21B6] border border-[#DDD6FE]'
-                        }`}
-                      >
-                        {story.priority}
-                      </span>
-                    </td>
-
-                    {/* Esforço em SP */}
-                    <td className="py-3 px-3 text-center">
-                      <span className="font-bold text-fg-primary bg-bg-page border border-border-subtle px-2 py-0.5 rounded text-xs">
-                        {story.points} SP
-                      </span>
-                    </td>
-
-                    {/* Responsável */}
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5">
-                        <Avatar
-                          name={story.assignee?.name}
-                          initials={story.assignee?.initials}
-                          size={24}
-                        />
-                        <span className="font-medium text-fg-primary">
-                          {story.assignee?.name}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Sprint Destino */}
-                    <td className="py-3 px-3">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          isSprint12
-                            ? 'bg-brand-action text-white'
-                            : story.targetSprint === 'Sprint 13'
-                            ? 'bg-[#EDE9FE] text-[#5B21B6]'
-                            : 'bg-bg-page text-fg-secondary border border-border-subtle'
-                        }`}
-                      >
-                        {story.targetSprint}
-                      </span>
-                    </td>
-
-                    {/* Ações */}
-                    <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {!isSprint12 ? (
-                          <Button
-                            variant="secondary"
-                            className="text-[11px] py-1 px-2.5 h-7"
-                            onClick={() => handleAssignSprint(story.id, 'Sprint 12')}
+                  return (
+                    <tr
+                      key={story.id}
+                      className="hover:bg-bg-page/50 transition-colors group"
+                    >
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex flex-col items-center justify-center gap-0.5 opacity-60 group-hover:opacity-100">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => moveItem(index, 'up')}
+                            className="p-0.5 hover:bg-border-subtle/50 rounded disabled:opacity-20 cursor-pointer"
+                            title="Subir prioridade"
                           >
-                            Mover p/ Sprint 12
-                          </Button>
-                        ) : (
-                          <span className="text-[11px] text-[#16A34A] font-semibold flex items-center gap-1 px-2">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            No Sprint
+                            <MoveUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === filteredStories.length - 1}
+                            onClick={() => moveItem(index, 'down')}
+                            className="p-0.5 hover:bg-border-subtle/50 rounded disabled:opacity-20 cursor-pointer"
+                            title="Descer prioridade"
+                          >
+                            <MoveDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-brand-action bg-brand-selection px-1.5 py-0.5 rounded text-[11px]">
+                            {story.code}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                          <span className="font-semibold text-fg-primary max-w-md">
+                            {story.title}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <span className="text-[11px] text-fg-secondary font-medium">
+                          {story.epic}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                            story.priority === 'Alta'
+                              ? 'bg-brand-selection text-brand-action border border-brand-primary/30'
+                              : story.priority === 'Média'
+                              ? 'bg-[#FEF3C7] dark:bg-[#453009] text-[#7A4D00] dark:text-[#FCD34D] border border-[#FDE68A] dark:border-[#F59E0B]/40'
+                              : 'bg-[#EDE9FE] dark:bg-[#2E1F4D] text-[#5B21B6] dark:text-[#C4B5FD] border border-[#DDD6FE] dark:border-[#8B5CF6]/40'
+                          }`}
+                        >
+                          {story.priority}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 text-center">
+                        <span className="font-bold text-fg-primary bg-bg-page border border-border-subtle px-2 py-0.5 rounded text-xs">
+                          {story.points || 0} SP
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <Avatar
+                            name={story.assignee?.name || 'Por atribuir'}
+                            initials={story.assignee?.initials}
+                            size={24}
+                          />
+                          <span className="font-medium text-fg-primary">
+                            {story.assignee?.name || 'Por atribuir'}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            isActiveSprint
+                              ? 'bg-brand-action text-white'
+                              : story.targetSprint !== 'Backlog do produto'
+                              ? 'bg-[#EDE9FE] dark:bg-[#2E1F4D] text-[#5B21B6] dark:text-[#C4B5FD]'
+                              : 'bg-bg-page text-fg-secondary border border-border-subtle'
+                          }`}
+                        >
+                          {story.targetSprint}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 text-right">
+                        <div className="inline-block w-44 text-left">
+                          <Select
+                            options={assignTargetOptions}
+                            value={currentSprintObj?.idSprint || 'BACKLOG'}
+                            onChange={(val) => handleAssignSprint(story.id, val)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
             </tbody>
           </table>
         </div>

@@ -95,7 +95,6 @@ export function PedidosPage() {
     setTimeout(() => setFeedbackError(''), 4000)
   }
 
-  // Tratar votação com feedback RNF-SEG-03
   const handleVoteAction = async (pedidoId, hasVoted) => {
     try {
       if (toggleVote) {
@@ -103,7 +102,7 @@ export function PedidosPage() {
       }
       showNotice(
         hasVoted
-          ? '✓ Voto registado com sucesso! (RNF-SEG-03: 1 voto por utilizador)'
+          ? '✓ Voto registado com sucesso! (1 voto por utilizador)'
           : 'Voto removido com sucesso.'
       )
     } catch (voteError) {
@@ -122,7 +121,7 @@ export function PedidosPage() {
     try {
       await dataContext.addComment?.(pedidoId, draft)
       setCommentDrafts((prev) => ({ ...prev, [pedidoId]: '' }))
-      showNotice('✓ Comentário publicado com sanitização (RNF-SEG-04 / CA3.2).')
+      showNotice('✓ Comentário publicado com sucesso.')
     } catch (commentError) {
       showErrorNotice(commentError.message || 'Não foi possível publicar o comentário.')
     } finally {
@@ -346,7 +345,7 @@ export function PedidosPage() {
           </span>
           <span className="flex items-center gap-1.5 text-brand-action font-medium">
             <SparklesIcon size={14} />
-            Protegido por RNF-SEG-03 (voto único por utilizador)
+            Limite de 1 voto por utilizador em cada pedido
           </span>
         </div>
 
@@ -612,7 +611,7 @@ export function PedidosPage() {
           aria-modal="true"
           aria-labelledby="delete-pedido-title"
         >
-          <div className="max-w-md w-full bg-white rounded-2xl border border-border-subtle p-6 shadow-xl space-y-4">
+          <div className="max-w-md w-full bg-bg-surface rounded-2xl border border-border-subtle p-6 shadow-xl space-y-4">
             <h3 id="delete-pedido-title" className="text-base font-bold text-fg-primary">
               Confirmar eliminação de pedido
             </h3>

@@ -5,7 +5,7 @@ import { ArrowUp } from './Icons.jsx'
 /**
  * VoteCounter Component
  *
- * Implements RNF-SEG-03: "Unicidade de Voto - Máximo de 1 voto por pedido de funcionalidade por utilizador".
+ * Enforces unique voting per user and feature request.
  *
  * @param {number} [votes=0] - Initial total vote count
  * @param {boolean} [initialVoted=false] - Whether current user has already voted
@@ -58,8 +58,8 @@ export function VoteCounter({
   }
 
   const tooltipText = hasVoted
-    ? 'Voto registado (RNF-SEG-03: máx. 1 voto por pedido)'
-    : 'Votar nesta funcionalidade (RNF-SEG-03)'
+    ? 'Voto registado (máx. 1 voto por pedido)'
+    : 'Votar nesta funcionalidade'
 
   return (
     <button
@@ -69,7 +69,7 @@ export function VoteCounter({
       aria-pressed={hasVoted}
       aria-label={
         hasVoted
-          ? `Votado (${count} votos). RNF-SEG-03: voto único por utilizador.`
+          ? `Votado (${count} votos). Voto único por utilizador.`
           : `Votar nesta funcionalidade (${count} votos).`
       }
       title={tooltipText}
@@ -81,14 +81,14 @@ export function VoteCounter({
         // Unvoted state
         !hasVoted && [
           'bg-bg-surface border-border-subtle text-fg-primary',
-          'hover:bg-[#FFE3DC] hover:border-[#E6533D] hover:text-[#B93826]',
-          'active:bg-[#F8C1B7]',
+          'hover:bg-brand-selection hover:border-brand-primary hover:text-brand-action',
+          'active:bg-brand-selection',
         ],
-        // Voted state (RNF-SEG-03 active vote)
+        // Voted state
         hasVoted && [
-          'bg-brand-action border-[#B93826] text-white shadow-xs',
-          'hover:bg-[#9A2C1E] hover:border-[#9A2C1E]',
-          'active:bg-[#7B2118]',
+          'bg-brand-action border-brand-action text-white shadow-xs',
+          'hover:bg-brand-hover hover:border-brand-hover',
+          'active:bg-brand-pressed',
         ],
         // Disabled state
         disabled && 'opacity-50 cursor-not-allowed pointer-events-none',

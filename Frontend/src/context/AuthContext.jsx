@@ -6,7 +6,6 @@ import {
   ROLE_BY_CODE,
   ROLE_LABELS,
   ROLE_PERMISSIONS,
-  MOCK_USERS,
   getRoleCode,
   getRoleLabel,
   normalizeRoleKey,
@@ -19,7 +18,6 @@ export {
   ROLE_BY_CODE,
   ROLE_LABELS,
   ROLE_PERMISSIONS,
-  MOCK_USERS,
   getRoleCode,
   getRoleLabel,
   normalizeRoleKey,
@@ -121,18 +119,6 @@ const mapApiUser = (apiUser) => ({
   roleCode: apiUser.papel || ROLE_CODES.CLIENT,
 })
 
-  // Alterna o papel (RBAC Switcher)
-  const switchRole = useCallback((roleKey) => {
-    const targetUser = MOCK_USERS[roleKey]
-    if (targetUser) {
-      setToken(null)
-      localStorage.setItem('giro_user', JSON.stringify(targetUser))
-      setCurrentUser(targetUser)
-      setIsAuthenticated(true)
-      resetInactivity()
-    }
-  }, [resetInactivity])
-
   // Login
   const login = useCallback(async (email, password) => {
     const result = await apiRequest('/auth/login', {
@@ -202,12 +188,10 @@ const mapApiUser = (apiUser) => ({
     login,
     register,
     logout,
-    switchRole,
     resetInactivity,
     testSimulateInactivity,
     resetNormalTimeout,
     allRoles: ROLES,
-    allUsers: MOCK_USERS,
   }
 
   return (

@@ -1,25 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { X, Layers, AlertCircle } from 'lucide-react'
 import { Button } from '../common/Button.jsx'
 import { Select } from '../common/Select.jsx'
 import { Avatar } from '../common/Avatar.jsx'
-import { useAuth } from '../../context/AuthContext.jsx'
+import { useAuth, getRoleLabel } from '../../context/AuthContext.jsx'
 import { useData } from '../../context/DataContext.jsx'
 import { useModal } from '../../context/ModalContext.jsx'
 import { cn } from '../../utils/cn.js'
-
-const DESTINATION_OPTIONS = [
-  { value: 'Backlog do produto', label: 'Backlog do produto' },
-  { value: 'Sprint 12', label: 'Sprint 12 (Em curso)' },
-]
-
-const ASSIGNEE_OPTIONS = [
-  { value: 'Sofia Costa', label: 'Sofia Costa (Product Owner)' },
-  { value: 'Inês Martins', label: 'Inês Martins (Scrum Master)' },
-  { value: 'Rafael Silva', label: 'Rafael Silva (Programador)' },
-  { value: 'Diogo Ferreira', label: 'Diogo Ferreira (Administrador do Sistema)' },
-  { value: 'Por atribuir', label: 'Por atribuir' },
-]
 
 const PRIORITY_OPTIONS = [
   { value: 'Baixa', label: 'Baixa' },
@@ -52,14 +39,56 @@ const MAX_TITLE_LENGTH = 120
 export function CreateStoryModal() {
   const { isCreateStoryModalOpen, closeCreateStoryModal } = useModal()
   const { currentUser, roleLabel } = useAuth()
-  const { pedidos, addStory } = useData()
+  const { pedidos = [], users = [], sprints = [], activeSprintLabel = 'Sem sprint ativo', addStory } = useData()
+
+  const destinationOptions = useMemo(() => {
+    const opts = [{ value: 'Backlog do produto', label: 'Backlog do produto' }]
+    const seen = new Set()
+    sprints.forEach((sp) => {
+      const value = `Sprint ${sp.numeroSprint}`
+      if (!seen.has(value)) {
+        seen.add(value)
+        const statusText = sp.estado === 'ATIVO' ? 'Em curso' : sp.estado === 'PLANEADO' ? 'Planeado' : sp.estado
+        opts.push({ value, label: statusText ? `${value} (${statusText})` : value })
+      }
+    })
+    return opts
+  }, [sprints])
+
+  const defaultTarget =
+    sprints.length > 0 && activeSprintLabel !== 'Sem sprint ativo'
+      ? activeSprintLabel
+      : 'Backlog do produto'
+
+  const internalMembers = useMemo(() => {
+    const filtered = users.filter((u) => u.active !== false && u.role !== 'CLIENT' && u.roleCode !== 'P04')
+    if (
+      currentUser?.name &&
+      currentUser.role !== 'CLIENT' &&
+      currentUser.roleCode !== 'P04' &&
+      !filtered.some((u) => u.name === currentUser.name)
+    ) {
+      return [...filtered, currentUser]
+    }
+    return filtered
+  }, [users, currentUser])
+
+  const assigneeOptions = useMemo(() => {
+    return [
+      ...internalMembers.map((u) => ({
+        value: u.name,
+        label: `${u.name} (${getRoleLabel(u.role)})`,
+      })),
+      { value: 'Por atribuir', label: 'Por atribuir' },
+    ]
+  }, [internalMembers])
 
   // Estados locais do formulário
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState(DEFAULT_AGILE_DESC)
   const [acceptanceCriteria, setAcceptanceCriteria] = useState('')
-  const [target, setTarget] = useState('Sprint 12')
-  const [assignee, setAssignee] = useState(currentUser?.name || 'Sofia Costa')
+  const [target, setTarget] = useState(defaultTarget)
+  const [assignee, setAssignee] = useState(currentUser?.name || 'Por atribuir')
   const [priority, setPriority] = useState('Média')
   const [points, setPoints] = useState('3')
   const [linkedPedidoId, setLinkedPedidoId] = useState('')
@@ -70,14 +99,14 @@ export function CreateStoryModal() {
     setTitle('')
     setDescription(DEFAULT_AGILE_DESC)
     setAcceptanceCriteria('')
-    setTarget('Sprint 12')
-    setAssignee(currentUser?.name || 'Sofia Costa')
+    setTarget(defaultTarget)
+    setAssignee(currentUser?.name || 'Por atribuir')
     setPriority('Média')
     setPoints('3')
     setLinkedPedidoId('')
     setErrors({})
     setIsSubmitting(false)
-  }, [currentUser])
+  }, [currentUser, defaultTarget])
 
   const handleClose = useCallback(() => {
     resetForm()
@@ -140,6 +169,14 @@ export function CreateStoryModal() {
     setIsSubmitting(true)
     setErrors({})
 
+    const matchedAssignee = internalMembers.find((u) => u.name === assignee)
+    const matchedSprint = sprints.find((sp) => `Sprint ${sp.numeroSprint}` === target)
+    const resolvedSprint = matchedSprint
+      ? `sprint-${matchedSprint.numeroSprint}`
+      : target === activeSprintLabel
+      ? `sprint-${activeSprintLabel.replace(/\D+/g, '') || '12'}`
+      : null
+
     // Determina objeto do responsável
     const assigneeObj =
       assignee === 'Por atribuir'
@@ -150,16 +187,9 @@ export function CreateStoryModal() {
               .split(' ')
               .map((n) => n[0])
               .join('')
+              .slice(0, 2)
               .toUpperCase(),
-            role: assignee === 'Rafael Silva'
-              ? 'Programador'
-              : assignee === 'Sofia Costa'
-              ? 'Product Owner'
-              : assignee === 'Inês Martins'
-              ? 'Scrum Master'
-              : assignee === 'Diogo Ferreira'
-              ? 'Administrador do Sistema'
-              : 'Membro de Equipa',
+            role: matchedAssignee ? getRoleLabel(matchedAssignee.role) : 'Membro de Equipa',
           }
 
     try {
@@ -171,7 +201,7 @@ export function CreateStoryModal() {
           .map((l) => l.trim())
           .filter(Boolean),
         target,
-        sprint: target === 'Sprint 12' ? 'sprint-12' : null,
+        sprint: resolvedSprint,
         assignee: assigneeObj,
         priority,
         points: points === 'Por estimar' ? null : parseInt(points, 10),
@@ -195,13 +225,13 @@ export function CreateStoryModal() {
     >
       {/* Container Principal da Janela (Figma 680x852 max) */}
       <div
-        className="w-full max-w-[680px] bg-white rounded-2xl border border-border-subtle shadow-xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+        className="w-full max-w-[680px] bg-bg-surface rounded-2xl border border-border-subtle shadow-xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Header do Modal */}
         <div className="px-6 py-5 border-b border-border-subtle flex items-center justify-between bg-bg-surface select-none">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#EDE9FE] text-[#5B21B6] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-[#EDE9FE] dark:bg-[#2E1F4D] text-[#5B21B6] dark:text-[#C4B5FD] flex items-center justify-center">
               <Layers className="w-5 h-5 text-[#8B5CF6]" aria-hidden="true" />
             </div>
             <div>
@@ -261,7 +291,7 @@ export function CreateStoryModal() {
               onChange={handleTitleChange}
               placeholder="Ex: Filtrar pedidos por categoria e estado de análise"
               className={cn(
-                'w-full h-11 px-3.5 rounded-lg border text-sm text-fg-primary placeholder:text-fg-disabled bg-white transition-all',
+                'w-full h-11 px-3.5 rounded-lg border text-sm text-fg-primary placeholder:text-fg-disabled bg-bg-surface transition-all',
                 'focus:outline-none focus:ring-2 focus:ring-border-focusRing',
                 errors.title
                   ? 'border-feedback-errorBorder ring-1 ring-feedback-errorBorder'
@@ -296,7 +326,7 @@ export function CreateStoryModal() {
                 }
               }}
               className={cn(
-                'w-full p-3 rounded-lg border text-sm text-fg-primary bg-white transition-all font-sans',
+                'w-full p-3 rounded-lg border text-sm text-fg-primary bg-bg-surface transition-all font-sans',
                 'focus:outline-none focus:ring-2 focus:ring-border-focusRing',
                 errors.description
                   ? 'border-feedback-errorBorder ring-1 ring-feedback-errorBorder'
@@ -331,7 +361,7 @@ export function CreateStoryModal() {
               }}
               placeholder="Um critério por linha. Ex:&#10;- Permitir selecionar múltiplos estados&#10;- Exibir contagem de itens encontrados"
               className={cn(
-                'w-full p-3 rounded-lg border text-sm text-fg-primary bg-white transition-all font-mono text-xs',
+                'w-full p-3 rounded-lg border text-sm text-fg-primary bg-bg-surface transition-all font-mono text-xs',
                 'focus:outline-none focus:ring-2 focus:ring-border-focusRing',
                 errors.acceptanceCriteria
                   ? 'border-feedback-errorBorder ring-1 ring-feedback-errorBorder'
@@ -350,14 +380,14 @@ export function CreateStoryModal() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <Select
               label="Destino *"
-              options={DESTINATION_OPTIONS}
+              options={destinationOptions}
               value={target}
               onChange={(v) => setTarget(v)}
             />
 
             <Select
               label="Responsável"
-              options={ASSIGNEE_OPTIONS}
+              options={assigneeOptions}
               value={assignee}
               onChange={(v) => setAssignee(v)}
             />
@@ -393,11 +423,11 @@ export function CreateStoryModal() {
         <div className="px-6 py-4 border-t border-border-subtle bg-bg-page flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 select-none">
           <div className="hidden sm:flex items-center gap-2.5 text-xs text-fg-secondary min-w-0">
             <Avatar
-              name={currentUser?.name || 'Sofia Costa'}
+              name={currentUser?.name || 'Utilizador'}
               size={28}
             />
             <span className="truncate">
-              <strong className="text-fg-primary">Autor:</strong> {currentUser?.name || 'Sofia Costa'} ({roleLabel || 'Product Owner'})
+              <strong className="text-fg-primary">Autor:</strong> {currentUser?.name || 'Utilizador'} ({roleLabel})
             </span>
           </div>
 

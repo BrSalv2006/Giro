@@ -8,7 +8,7 @@ import {
   SparklesIcon,
   ShieldCheckIcon,
 } from '../../components/common'
-import { useAuth, MOCK_USERS } from '../../context/AuthContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 import heroImg from '../../assets/hero.png'
 
 function useSafeAuth() {
@@ -16,9 +16,8 @@ function useSafeAuth() {
     return useAuth()
   } catch {
     return {
-      login: () => {},
-      switchRole: () => {},
-      currentUser: { name: 'Sofia Costa', email: 'sofia.costa@giro.com', role: 'PRODUCT_OWNER' },
+      login: async () => {},
+      currentUser: null,
     }
   }
 }
@@ -29,9 +28,9 @@ function useSafeAuth() {
  */
 export function LoginPage() {
   const navigate = useNavigate()
-  const { login, switchRole } = useSafeAuth()
+  const { login } = useSafeAuth()
 
-  const [email, setEmail] = useState('sofia.costa@giro.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -58,24 +57,6 @@ export function LoginPage() {
     } catch (submitError) {
       setLoading(false)
       setError(submitError.message)
-    }
-  }
-
-  // Acesso direto para testes rápidos dos 5 papéis RBAC
-  const handleQuickLogin = async (roleKey, userEmail) => {
-    setEmail(userEmail)
-    setPassword('demo1234')
-    setError('')
-    setLoading(true)
-    try {
-      await login(userEmail, 'demo1234')
-      setLoading(false)
-      navigate('/')
-    } catch {
-      // Quick role preview remains available without requiring a database account.
-      switchRole(roleKey)
-      setLoading(false)
-      navigate('/')
     }
   }
 
@@ -147,7 +128,7 @@ export function LoginPage() {
         {/* Lado Direito: Formulário de Login (Figma 342:1199) */}
         <section
           aria-labelledby="login-title"
-          className="lg:col-span-5 max-w-[440px] w-full mx-auto flex flex-col justify-center space-y-6 bg-white sm:bg-transparent p-6 sm:p-0 rounded-2xl sm:rounded-none shadow-sm sm:shadow-none border border-border-subtle sm:border-0"
+          className="lg:col-span-5 max-w-[440px] w-full mx-auto flex flex-col justify-center space-y-6 bg-bg-surface sm:bg-transparent p-6 sm:p-0 rounded-2xl sm:rounded-none shadow-sm sm:shadow-none border border-border-subtle sm:border-0"
         >
           {/* Introdução do Formulário (Figma 342:1200) */}
           <div className="space-y-2">
@@ -178,10 +159,10 @@ export function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="sofia.costa@giro.com"
+              placeholder="Ex: utilizador@empresa.com"
               required
               autoComplete="email"
-              className="bg-white"
+              className="bg-bg-surface"
             />
 
             <TextField
@@ -189,10 +170,10 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
+              placeholder="Ex: ••••••••"
               required
               autoComplete="current-password"
-              className="bg-white"
+              className="bg-bg-surface"
             />
 
             {/* Preferências de acesso (Figma 342:1207) */}
@@ -229,70 +210,6 @@ export function LoginPage() {
             <div className="flex items-center justify-center gap-2 text-xs text-fg-secondary">
               <ShieldCheckIcon size={14} className="text-[#16A34A] shrink-0" />
               <span>Os seus dados protegidos, sempre. Encriptação ponta a ponta.</span>
-            </div>
-          </div>
-
-          {/* Botões de Acesso Rápido para Testes RBAC dos 5 Papéis */}
-          <div className="p-3.5 rounded-xl bg-bg-page border border-border-subtle space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-fg-secondary uppercase tracking-wider">
-                Acesso Rápido de Teste (5 Papéis RBAC)
-              </span>
-              <span className="text-[10px] text-brand-action font-mono">
-                1-Clique Demo
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('PRODUCT_OWNER', MOCK_USERS.PRODUCT_OWNER.email)}
-                className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Sofia Costa (Product Owner · P01)"
-              >
-                <div className="font-semibold text-fg-primary text-[11px]">Sofia Costa</div>
-                <div className="text-[10px] text-fg-secondary truncate">Product Owner</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('ADMIN', MOCK_USERS.ADMIN.email)}
-                className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Diogo Ferreira (Administrador do Sistema · P05)"
-              >
-                <div className="font-semibold text-fg-primary text-[11px]">Diogo Ferreira</div>
-                <div className="text-[10px] text-fg-secondary truncate">Administrador do Sistema</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('SCRUM_MASTER', MOCK_USERS.SCRUM_MASTER.email)}
-                className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Inês Martins (Scrum Master · P02)"
-              >
-                <div className="font-semibold text-fg-primary text-[11px]">Inês Martins</div>
-                <div className="text-[10px] text-fg-secondary truncate">Scrum Master</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('DEVELOPER', MOCK_USERS.DEVELOPER.email)}
-                className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Rafael Silva (Programador · P03)"
-              >
-                <div className="font-semibold text-fg-primary text-[11px]">Rafael Silva</div>
-                <div className="text-[10px] text-fg-secondary truncate">Programador</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('CLIENT', MOCK_USERS.CLIENT.email)}
-                className="col-span-2 sm:col-span-2 p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Miguel Alves (Cliente Final · P04)"
-              >
-                <div className="font-semibold text-fg-primary text-[11px]">Miguel Alves</div>
-                <div className="text-[10px] text-fg-secondary truncate">Cliente Final · Votação &amp; Sugestões</div>
-              </button>
             </div>
           </div>
         </section>

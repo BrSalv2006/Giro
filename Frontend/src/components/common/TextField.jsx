@@ -106,12 +106,12 @@ export const TextField = React.forwardRef(function TextField(
             'placeholder:text-fg-disabled-muted',
             // Estado padrão e foco
             !hasError &&
-              'bg-white border border-border-subtle hover:border-border-control focus:border-transparent focus:ring-2 focus:ring-border-focusRing focus:outline-none',
-            // Estado de erro (pêssego #FFE3DC com borda vermelha #B42318)
+              'bg-bg-surface border border-border-subtle hover:border-border-control focus:border-transparent focus:ring-2 focus:ring-border-focusRing focus:outline-none',
+            // Estado de erro
             hasError &&
               'bg-feedback-errorBg border border-feedback-errorBorder text-fg-primary focus:border-feedback-errorBorder focus:ring-2 focus:ring-feedback-errorBorder focus:outline-none',
             // Estado desativado
-            'disabled:bg-[#0000000A] disabled:border-border-disabled disabled:text-fg-disabled disabled:cursor-not-allowed disabled:placeholder:text-fg-disabled',
+            'disabled:bg-bg-disabled disabled:border-border-disabled disabled:text-fg-disabled disabled:cursor-not-allowed disabled:placeholder:text-fg-disabled',
             // Espaçamento para ícones
             icon && iconPosition === 'left' && 'pl-10',
             icon && iconPosition === 'right' && 'pr-10',

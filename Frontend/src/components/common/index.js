@@ -14,4 +14,5 @@ export { MetricCard, default as MetricCardDefault } from './MetricCard.jsx'
 export { VoteCounter, default as VoteCounterDefault } from './VoteCounter.jsx'
 export { StoryCard, default as StoryCardDefault } from './StoryCard.jsx'
 export { NotificationItem, default as NotificationItemDefault } from './NotificationItem.jsx'
+export { SprintTimelineStrip, default as SprintTimelineStripDefault } from './SprintTimelineStrip.jsx'
 

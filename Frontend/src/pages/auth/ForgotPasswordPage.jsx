@@ -17,7 +17,7 @@ import heroImg from '../../assets/hero.png'
 export function ForgotPasswordPage() {
   const navigate = useNavigate()
 
-  const [email, setEmail] = useState('sofia.costa@giro.com')
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isSuccess, setIsSuccess] = useState(false)
@@ -114,10 +114,10 @@ export function ForgotPasswordPage() {
         {/* Lado Direito: Formulário de Recuperação (Figma 342:1288) */}
         <section
           aria-labelledby="forgot-title"
-          className="lg:col-span-5 max-w-[440px] w-full mx-auto flex flex-col justify-center space-y-6 bg-white sm:bg-transparent p-6 sm:p-0 rounded-2xl sm:rounded-none shadow-sm sm:shadow-none border border-border-subtle sm:border-0"
+          className="lg:col-span-5 max-w-[440px] w-full mx-auto flex flex-col justify-center space-y-6 bg-bg-surface sm:bg-transparent p-6 sm:p-0 rounded-2xl sm:rounded-none shadow-sm sm:shadow-none border border-border-subtle sm:border-0"
         >
           {isSuccess ? (
-            <div className="p-6 rounded-2xl bg-white border border-[#BBF7D0] shadow-sm space-y-5 text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 rounded-2xl bg-bg-surface border border-[#BBF7D0] dark:border-[#22C55E]/40 shadow-sm space-y-5 text-center animate-in fade-in zoom-in-95 duration-200">
               <div className="w-14 h-14 rounded-full bg-[#DCFCE7] text-[#166534] mx-auto flex items-center justify-center">
                 <CheckIcon size={28} className="text-[#16A34A]" />
               </div>
@@ -182,10 +182,10 @@ export function ForgotPasswordPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="sofia.costa@giro.com"
+                  placeholder="Ex: utilizador@empresa.com"
                   required
                   autoComplete="email"
-                  className="bg-white"
+                  className="bg-bg-surface"
                 />
 
                 {/* Ações (Figma 342:1295) */}

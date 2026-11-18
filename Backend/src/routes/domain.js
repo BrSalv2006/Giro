@@ -32,7 +32,9 @@ export function domainRoutes({ auth, service }) {
 
   endpoint('post', '/user-stories', manager, (req) => service.createStory(req.body, req.user.sub));
   endpoint('patch', '/user-stories/:id', manager, (req) => service.updateStory(req.params.id, req.body, req.user), 200);
-  endpoint('post', '/sprints', manager, (req) => service.createSprint(req.body, req.user.sub));
+  endpoint('post', '/sprints', triageManagers, (req) => service.createSprint(req.body, req.user));
+  endpoint('patch', '/sprints/:id', triageManagers, (req) => service.updateSprint(req.params.id, req.body, req.user), 200);
+  endpoint('delete', '/sprints/:id', triageManagers, (req) => service.deleteSprint(req.params.id, req.user), 204);
   endpoint('post', '/roadmap', manager, (req) => service.createRelease(req.body, req.user.sub));
   endpoint('post', '/dependencias', manager, (req) => service.createDependency(req.body));
   endpoint('patch', '/users/:id', adminOnly, (req) => service.updateUser(req.params.id, req.body, req.user), 200);

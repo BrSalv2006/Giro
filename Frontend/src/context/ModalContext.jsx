@@ -6,10 +6,11 @@ const ModalContext = createContext(null)
 export function ModalProvider({ children }) {
   const [isNewFeatureModalOpen, setIsNewFeatureModalOpen] = useState(false)
   const [isCreateStoryModalOpen, setIsCreateStoryModalOpen] = useState(false)
-  const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false)
+  const [isSprintModalOpen, setIsSprintModalOpen] = useState(false)
+  const [editingSprint, setEditingSprint] = useState(null)
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
 
-  // Abertura e fecho do modal de Novo Pedido (Figma 342:2327)
+  // Abertura e fecho do modal de Novo Pedido
   const openNewFeatureModal = useCallback(() => {
     setIsNewFeatureModalOpen(true)
     setIsProfileMenuOpen(false)
@@ -19,7 +20,7 @@ export function ModalProvider({ children }) {
     setIsNewFeatureModalOpen(false)
   }, [])
 
-  // Abertura e fecho do modal de Criar User Story (Figma 342:2074)
+  // Abertura e fecho do modal de Criar User Story
   const openCreateStoryModal = useCallback(() => {
     setIsCreateStoryModalOpen(true)
     setIsProfileMenuOpen(false)
@@ -29,19 +30,16 @@ export function ModalProvider({ children }) {
     setIsCreateStoryModalOpen(false)
   }, [])
 
-  // Abertura e alternância do seletor de papéis RBAC
-  const openRoleSwitcher = useCallback(() => {
-    setIsRoleSwitcherOpen(true)
+  // Abertura e fecho do modal de Criar / Editar Sprint
+  const openSprintModal = useCallback((sprint = null) => {
+    setEditingSprint(sprint || null)
+    setIsSprintModalOpen(true)
     setIsProfileMenuOpen(false)
   }, [])
 
-  const closeRoleSwitcher = useCallback(() => {
-    setIsRoleSwitcherOpen(false)
-  }, [])
-
-  const toggleRoleSwitcher = useCallback(() => {
-    setIsRoleSwitcherOpen((prev) => !prev)
-    setIsProfileMenuOpen(false)
+  const closeSprintModal = useCallback(() => {
+    setIsSprintModalOpen(false)
+    setEditingSprint(null)
   }, [])
 
   // Menu de perfil no cabeçalho
@@ -56,22 +54,23 @@ export function ModalProvider({ children }) {
   const closeAllModals = useCallback(() => {
     setIsNewFeatureModalOpen(false)
     setIsCreateStoryModalOpen(false)
-    setIsRoleSwitcherOpen(false)
+    setIsSprintModalOpen(false)
+    setEditingSprint(null)
     setIsProfileMenuOpen(false)
   }, [])
 
   const value = {
     isNewFeatureModalOpen,
     isCreateStoryModalOpen,
-    isRoleSwitcherOpen,
+    isSprintModalOpen,
+    editingSprint,
     isProfileMenuOpen,
     openNewFeatureModal,
     closeNewFeatureModal,
     openCreateStoryModal,
     closeCreateStoryModal,
-    openRoleSwitcher,
-    closeRoleSwitcher,
-    toggleRoleSwitcher,
+    openSprintModal,
+    closeSprintModal,
     toggleProfileMenu,
     closeProfileMenu,
     closeAllModals,

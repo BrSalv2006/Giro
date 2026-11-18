@@ -146,7 +146,7 @@ export function PriorizacaoPage() {
       }
       showToast(
         hasVoted
-          ? '✓ Voto registado (RNF-SEG-03: unicidade por utilizador)'
+          ? '✓ Voto registado (1 voto por utilizador)'
           : 'Voto removido com sucesso.'
       )
     } catch (voteError) {
@@ -193,7 +193,7 @@ export function PriorizacaoPage() {
         }))
         setAiNotice({
           type: 'warning',
-          text: `${result.message || 'Serviço Gemini IA indisponível.'} Contingência local aplicada para ${item.id} sem bloquear a triagem manual (CA4.3).`,
+          text: `${result.message || 'Serviço Gemini IA indisponível.'} Contingência local aplicada para ${item.id} sem bloquear a triagem manual.`,
         })
       } else {
         setAiOverrides((prev) => ({
@@ -208,7 +208,7 @@ export function PriorizacaoPage() {
         }))
         setAiNotice({
           type: 'success',
-          text: `Priorização assistida por IA concluída para ${item.id} com remoção automática de dados pessoais (RNF-SEG-05 / CA4.1).`,
+          text: `Priorização assistida por IA concluída para ${item.id} com remoção automática de dados pessoais.`,
         })
       }
     } finally {
@@ -240,11 +240,11 @@ export function PriorizacaoPage() {
         hadFallback
           ? {
               type: 'warning',
-              text: 'API externa de IA indisponível (CA4.3). Estimativa heurística local aplicada com proteção PII; a reordenação manual continua disponível.',
+              text: 'API externa de IA indisponível. Estimativa heurística local aplicada com proteção de dados; a reordenação manual continua disponível.',
             }
           : {
               type: 'success',
-              text: `Análise concluída para ${targets.length} pedidos (CA4.1 · PII sanitizado antes do envio).`,
+              text: `Análise concluída para ${targets.length} pedidos (dados pessoais removidos antes do envio).`,
             }
       )
     } finally {
@@ -261,7 +261,7 @@ export function PriorizacaoPage() {
     const [moved] = nextOrder.splice(idx, 1)
     nextOrder.splice(targetIdx, 0, moved)
     setManualOrderIds(nextOrder)
-    showToast(`✓ Ordem manual atualizada para ${itemId} (CA4.2: decisão do PO soberana).`)
+    showToast(`✓ Ordem manual atualizada para ${itemId}.`)
   }
 
   const filteredItems = useMemo(() => {
@@ -353,14 +353,14 @@ export function PriorizacaoPage() {
           value={kpis.totalVotes}
           change="Ativos no catálogo"
           trend="positive"
-          subtitle="RNF-SEG-03: 1 voto por utilizador"
+          subtitle="1 voto por utilizador"
           icon={<TrendingUp className="w-5 h-5 text-[#16A34A]" />}
         />
 
         <MetricCard
           title="Em análise"
           value={kpis.pendingAnalysis}
-          change="PO triagem ativa"
+          change="Triagem ativa"
           trend="neutral"
           subtitle="Aguardam decisão de produto"
           icon={<Clock className="w-5 h-5 text-[#F59E0B]" />}
@@ -369,15 +369,15 @@ export function PriorizacaoPage() {
         <MetricCard
           title="Os meus votos"
           value={kpis.myVotes}
-          change="RNF-SEG-03"
+          change="Voto único"
           trend="neutral"
           subtitle="Votos atribuídos por si"
           icon={<Zap className="w-5 h-5 text-[#8B5CF6]" />}
         />
       </div>
 
-      {/* 3. Banner de Recomendações de IA (Gemini Prioritization) */}
-      <div className="bg-gradient-to-r from-[#EDE9FE] via-[#F3E8FF] to-[#FFE3DC] border border-[#DDD6FE] rounded-xl p-5 shadow-xs">
+      {/* 3. Banner de Recomendações de IA */}
+      <div className="bg-gradient-to-r from-[#EDE9FE] via-[#F3E8FF] to-[#FFE3DC] dark:from-[#2E1F4D] dark:via-[#261B3D] dark:to-[#3A1D19] border border-[#DDD6FE] dark:border-[#8B5CF6]/30 rounded-xl p-5 shadow-xs">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
             <div className="w-10 h-10 rounded-lg bg-brand-action text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -389,11 +389,11 @@ export function PriorizacaoPage() {
                   Sugestões de IA para o próximo Sprint
                 </h2>
                 <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[#8B5CF6] text-white">
-                  Gemini AI · Sem PII
+                  Gemini AI · Dados protegidos
                 </span>
               </div>
               <p className="text-xs text-fg-secondary mt-1 max-w-3xl leading-relaxed">
-                O adaptador de IA remove dados pessoais (RNF-SEG-05) antes da análise de impacto vs. esforço. Foram identificados <strong>{kpis.quickWinsCount} Quick Wins</strong>; a ordenação manual do Product Owner mantém prioridade soberana (CA4.2).
+                O adaptador de IA anonimiza dados pessoais antes da análise de impacto vs. esforço. Foram identificados <strong>{kpis.quickWinsCount} Quick Wins</strong>; a ordenação manual do Product Owner mantém prioridade soberana.
               </p>
             </div>
           </div>
@@ -495,7 +495,7 @@ export function PriorizacaoPage() {
                   .map((item) => (
                     <div
                       key={item.id}
-                      className="p-2.5 rounded-lg bg-white border border-[#BBF7D0] shadow-2xs flex items-center justify-between gap-2 text-xs"
+                      className="p-2.5 rounded-lg bg-bg-surface border border-[#BBF7D0] shadow-2xs flex items-center justify-between gap-2 text-xs"
                     >
                       <div className="space-y-0.5 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -545,7 +545,7 @@ export function PriorizacaoPage() {
                   .map((item) => (
                     <div
                       key={item.id}
-                      className="p-2.5 rounded-lg bg-white border border-[#FDE68A] shadow-2xs flex items-center justify-between gap-2 text-xs"
+                      className="p-2.5 rounded-lg bg-bg-surface border border-[#FDE68A] shadow-2xs flex items-center justify-between gap-2 text-xs"
                     >
                       <div className="space-y-0.5 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -595,7 +595,7 @@ export function PriorizacaoPage() {
                   .map((item) => (
                     <div
                       key={item.id}
-                      className="p-2.5 rounded-lg bg-white border border-[#DDD6FE] shadow-2xs flex items-center justify-between gap-2 text-xs"
+                      className="p-2.5 rounded-lg bg-bg-surface border border-[#DDD6FE] shadow-2xs flex items-center justify-between gap-2 text-xs"
                     >
                       <div className="space-y-0.5 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -645,7 +645,7 @@ export function PriorizacaoPage() {
                   .map((item) => (
                     <div
                       key={item.id}
-                      className="p-2.5 rounded-lg bg-white border border-[#FECACA] shadow-2xs flex items-center justify-between gap-2 text-xs"
+                      className="p-2.5 rounded-lg bg-bg-surface border border-[#FECACA] shadow-2xs flex items-center justify-between gap-2 text-xs"
                     >
                       <div className="space-y-0.5 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -700,7 +700,7 @@ export function PriorizacaoPage() {
               <tr className="border-b border-border-subtle text-fg-secondary uppercase tracking-wider font-semibold">
                 <th className="py-2.5 px-3">Rank</th>
                 <th className="py-2.5 px-3">Pedido</th>
-                <th className="py-2.5 px-3">Votos (RNF-SEG-03)</th>
+                <th className="py-2.5 px-3">Votos</th>
                 <th className="py-2.5 px-3">Impacto</th>
                 <th className="py-2.5 px-3">Esforço</th>
                 <th className="py-2.5 px-3">Score</th>
@@ -723,7 +723,7 @@ export function PriorizacaoPage() {
                               disabled={idx === 0}
                               onClick={() => handleManualMove(item.id, 'up')}
                               className="p-0.5 text-fg-secondary hover:text-fg-primary disabled:opacity-25 cursor-pointer"
-                              title="Subir prioridade manualmente (CA4.2)"
+                              title="Subir prioridade manualmente"
                               aria-label={`Subir ${item.id}`}
                             >
                               <ArrowUp className="w-3 h-3" />
@@ -733,7 +733,7 @@ export function PriorizacaoPage() {
                               disabled={idx === filteredItems.length - 1}
                               onClick={() => handleManualMove(item.id, 'down')}
                               className="p-0.5 text-fg-secondary hover:text-fg-primary disabled:opacity-25 cursor-pointer"
-                              title="Descer prioridade manualmente (CA4.2)"
+                              title="Descer prioridade manualmente"
                               aria-label={`Descer ${item.id}`}
                             >
                               <ArrowDown className="w-3 h-3" />

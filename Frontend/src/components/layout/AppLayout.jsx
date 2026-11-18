@@ -3,7 +3,7 @@ import { GlobalHeader } from './GlobalHeader.jsx'
 import { SidebarNav } from './SidebarNav.jsx'
 import { NewFeatureModal } from '../modals/NewFeatureModal.jsx'
 import { CreateStoryModal } from '../modals/CreateStoryModal.jsx'
-import { RoleSwitcherModal } from '../modals/RoleSwitcherModal.jsx'
+import { SprintModal } from '../modals/SprintModal.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { Button } from '../common/Button.jsx'
 import { Clock } from 'lucide-react'
@@ -14,7 +14,7 @@ import { Clock } from 'lucide-react'
  * - GlobalHeader (76px height)
  * - SidebarNav (224px width)
  * - Scrollable Main viewport
- * - Global Modals (NewFeatureModal, CreateStoryModal, RoleSwitcherModal)
+ * - Global Modals (NewFeatureModal, CreateStoryModal)
  * - Inactivity Warning Modal (RNF-SEG-01)
  */
 export function AppLayout({ children }) {
@@ -44,9 +44,9 @@ export function AppLayout({ children }) {
       {/* 3. Janelas Modais Globais */}
       <NewFeatureModal />
       <CreateStoryModal />
-      <RoleSwitcherModal />
+      <SprintModal />
 
-      {/* 4. Alerta de Inatividade Iminente (RNF-SEG-01) */}
+      {/* 4. Alerta de Inatividade Iminente */}
       {isWarningActive && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
@@ -54,14 +54,14 @@ export function AppLayout({ children }) {
           aria-labelledby="inactivity-warning-title"
           aria-describedby="inactivity-warning-desc"
         >
-          <div className="max-w-md w-full bg-white rounded-2xl border border-border-subtle p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+          <div className="max-w-md w-full bg-bg-surface rounded-2xl border border-border-subtle p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-[#FEF3C7] text-[#7A4D00] flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-[#FEF3C7] dark:bg-[#453009] text-[#7A4D00] dark:text-[#FCD34D] flex items-center justify-center">
                 <Clock className="w-6 h-6 text-[#F59E0B]" aria-hidden="true" />
               </div>
               <div>
                 <h3 id="inactivity-warning-title" className="text-base font-bold text-fg-primary">
-                  Aviso de Inatividade (RNF-SEG-01)
+                  Aviso de Inatividade
                 </h3>
                 <p className="text-xs text-fg-secondary">
                   A sua sessão está prestes a expirar.

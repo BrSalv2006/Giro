@@ -6,7 +6,7 @@ import {
   SearchIcon,
   CloseIcon,
 } from '../components/common'
-import { getRoleCode, getRoleLabel } from '../context/AuthContext.jsx'
+import { getRoleLabel } from '../context/AuthContext.jsx'
 import { useData } from '../context/DataContext.jsx'
 
 function useSafeData() {
@@ -93,7 +93,7 @@ export function AdvancedSearchPage() {
           description: p.description,
           status: p.status,
           votes: p.voteCount || 0,
-          author: p.author?.name || 'Sofia Costa',
+          author: p.author?.name || 'Utilizador',
           date: p.createdAt?.slice(0, 10) || '2026-11-04',
           tags: p.tags || [],
           url: '/pedidos',
@@ -108,7 +108,7 @@ export function AdvancedSearchPage() {
           description: s.description || s.acceptanceCriteria?.[0] || '',
           status: s.status,
           points: s.points || 5,
-          sprint: s.sprint || 'Sprint 12',
+          sprint: s.target || s.sprint || 'Backlog do produto',
           assignee: s.assignee?.name || 'Equipa',
           tags: s.tags || [],
           url: '/sprint',
@@ -129,14 +129,13 @@ export function AdvancedSearchPage() {
       : []
     const membros = (dataContext.users || []).map((user) => {
       const roleLabel = getRoleLabel(user.role)
-      const roleCode = user.roleCode || getRoleCode(user.role)
       return {
         id: user.id,
         category: 'membros',
         title: user.name,
-        role: `${roleCode} · ${roleLabel}`,
+        role: roleLabel,
         email: user.email,
-        description: `${roleCode} · ${roleLabel}${user.active === false ? ' — Inativo' : ''}`,
+        description: `${roleLabel}${user.active === false ? ' — Inativo' : ''}`,
         url: '/definicoes',
       }
     })
@@ -207,14 +206,14 @@ export function AdvancedSearchPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-5">
         <div>
           <div className="flex items-center gap-2 text-xs text-fg-secondary mb-1">
-            <span>Plataforma de Produto</span>
+            <span>{dataContext.workspaceConfig?.projectName || 'Plataforma de Produto'}</span>
             <span>/</span>
-            <span className="font-medium text-fg-primary">Giro Dev Team</span>
+            <span className="font-medium text-fg-primary">{dataContext.workspaceConfig?.teamName || 'Equipa Principal'}</span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-bold text-fg-primary tracking-tight flex items-center gap-3">
             <span>Pesquisa Avançada</span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-mono bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]">
-              RNF-DES-02: &lt;200ms
+            <span className="text-xs px-2.5 py-0.5 rounded-full font-mono bg-[#DCFCE7] dark:bg-[#123823] text-[#166534] dark:text-[#86EFAC] border border-[#BBF7D0] dark:border-[#22C55E]/40">
+              Instantânea
             </span>
           </h1>
           <p className="text-sm text-fg-secondary mt-1">
@@ -231,8 +230,8 @@ export function AdvancedSearchPage() {
         </button>
       </div>
 
-      {/* 2. Barra de Pesquisa Principal com Live Benchmark */}
-      <div className="p-5 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-4">
+      {/* 2. Barra de Pesquisa Principal */}
+      <div className="p-5 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-4">
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-fg-secondary">
             <SearchIcon size={20} />
@@ -269,7 +268,7 @@ export function AdvancedSearchPage() {
         {/* Atalhos / Sugestões rápidas de pesquisa */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-fg-secondary font-medium">Sugestões rápidas:</span>
-          {['Filtro', 'Relatórios', 'Sofia Costa', 'US-42', 'Sprint 12', 'GitHub'].map((suggestion) => (
+          {['Filtro', 'Relatórios', 'US-42', 'Segurança', 'API', 'Roadmap'].map((suggestion) => (
             <button
               key={suggestion}
               type="button"
@@ -358,20 +357,20 @@ export function AdvancedSearchPage() {
         </div>
 
         {/* Benchmark Pill */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs bg-white border border-border-subtle shadow-2xs font-mono">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs bg-bg-surface border border-border-subtle shadow-2xs font-mono">
           <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-ping" />
-          <span className="text-[#166534] font-medium">
+          <span className="text-[#166534] dark:text-[#86EFAC] font-medium">
             ⚡ {searchLatencyMs}ms
           </span>
           <span className="text-fg-secondary">
-            (RNF-DES-02: &lt;200ms após 3 carateres ✓)
+            (resposta rápida em tempo real)
           </span>
         </div>
       </div>
 
       {/* 5. Grelha de Resultados */}
       {searchResults.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-border-subtle space-y-3">
+        <div className="p-12 text-center bg-bg-surface rounded-2xl border border-border-subtle space-y-3">
           <div className="w-12 h-12 rounded-full bg-bg-page mx-auto flex items-center justify-center text-fg-secondary">
             <SearchIcon size={24} />
           </div>
@@ -401,7 +400,7 @@ export function AdvancedSearchPage() {
               <div
                 key={`${item.category}-${item.id}`}
                 onClick={() => setSelectedResult(item)}
-                className="p-4 sm:p-5 rounded-xl bg-white border border-border-subtle hover:border-brand-action hover:shadow-xs transition-all cursor-pointer space-y-2 group"
+                className="p-4 sm:p-5 rounded-xl bg-bg-surface border border-border-subtle hover:border-brand-action hover:shadow-xs transition-all cursor-pointer space-y-2 group"
               >
                 {/* Linha Superior: Tipo de Objeto, ID e Estado */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -512,7 +511,7 @@ export function AdvancedSearchPage() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="max-w-lg w-full bg-white rounded-2xl border border-border-subtle p-6 shadow-xl space-y-4 animate-in zoom-in-95 duration-150">
+          <div className="max-w-lg w-full bg-bg-surface rounded-2xl border border-border-subtle p-6 shadow-xl space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-brand-action uppercase tracking-wider">
                 {selectedResult.category} · {selectedResult.id}

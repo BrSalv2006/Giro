@@ -307,3 +307,69 @@ test('pagination clamps take <= 50 and skip >= 0 in MemoryRepository and PrismaR
   assert.equal(capturedArgs.skip, 0);
   assert.equal(capturedArgs.take, 50);
 });
+
+test('sprint lifecycle enforces unique numbers, single active sprint, timeline order, and roll-over on completion', async () => {
+  const repo = new MemoryRepository();
+  const service = domainService(repo);
+  const actor = id();
+
+  const sprint1 = await service.createSprint({
+    numeroSprint: 1,
+    dataInicio: '2026-11-01',
+    dataFim: '2026-11-15',
+    capacidadeMaxima: 24,
+    estado: 'ATIVO',
+  }, actor);
+  const sprint2 = await service.createSprint({
+    numeroSprint: 2,
+    dataInicio: '2026-11-16',
+    dataFim: '2026-11-30',
+    capacidadeMaxima: 30,
+    estado: 'PLANEADO',
+  }, actor);
+
+  // Duplicate number rejected (409)
+  await assert.rejects(
+    () => service.createSprint({ numeroSprint: 1, dataInicio: '2026-12-01', dataFim: '2026-12-10' }, actor),
+    (err) => err.status === 409
+  );
+
+  // Two concurrent active sprints rejected (409)
+  await assert.rejects(
+    () => service.updateSprint(sprint2.idSprint, { estado: 'ATIVO' }, actor),
+    (err) => err.status === 409
+  );
+
+  // Invalid timeline on update rejected (400)
+  await assert.rejects(
+    () => service.updateSprint(sprint2.idSprint, { dataFim: '2026-11-10' }, actor),
+    (err) => err.status === 400
+  );
+
+  const pedido = await service.createPedido({ titulo: 'Feature Sprint', descricao: 'Desc', categoria: 'MELHORIA' }, actor);
+  const doneUs = (await service.createStory({
+    codigoUs: 'US301', titulo: 'Done US', descricao: 'Desc', criteriosAceitacao: 'OK', idPedido: pedido.idPedido, idSprint: sprint1.idSprint,
+  }, actor)).item;
+  const openUs = (await service.createStory({
+    codigoUs: 'US302', titulo: 'Open US', descricao: 'Desc', criteriosAceitacao: 'OK', idPedido: pedido.idPedido, idSprint: sprint1.idSprint,
+  }, actor)).item;
+
+  await service.updateStory(doneUs.idTarefa, { estadoTecnico: 'CONCLUIDO', tempoRegistado: 4 }, { sub: actor, papel: 'P03' });
+
+  // Conclude sprint1 moving incomplete stories to sprint2
+  const closed = await service.updateSprint(sprint1.idSprint, {
+    estado: 'CONCLUIDO',
+    incompletePolicy: 'NEXT_SPRINT',
+    targetSprintId: sprint2.idSprint,
+  }, actor);
+  assert.equal(closed.estado, 'CONCLUIDO');
+  assert.equal((await repo.findById('UserStory', doneUs.idTarefa)).idSprint, sprint1.idSprint);
+  assert.equal((await repo.findById('UserStory', openUs.idTarefa)).idSprint, sprint2.idSprint);
+  assert.equal((await repo.findById('UserStory', openUs.idTarefa)).estadoTecnico, 'TODO');
+
+  // Deleting sprint2 sends incomplete openUs back to backlog
+  await service.deleteSprint(sprint2.idSprint, actor);
+  assert.equal(await repo.findById('Sprint', sprint2.idSprint), null);
+  assert.equal((await repo.findById('UserStory', openUs.idTarefa)).idSprint, null);
+  assert.equal((await repo.findById('UserStory', openUs.idTarefa)).estadoTecnico, 'BACKLOG');
+});

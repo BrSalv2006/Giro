@@ -23,57 +23,72 @@ function useSafeAuth() {
     return useAuth() || {}
   } catch {
     return {
-      currentUser: { name: 'Sofia Costa', role: 'PRODUCT_OWNER', initials: 'SC' },
-      role: 'PRODUCT_OWNER',
-      roleLabel: 'Product Owner',
+      currentUser: null,
+      role: 'CLIENT',
+      roleLabel: 'Cliente Final',
     }
   }
 }
 
 const ROLE_BADGE_CLASSES = {
-  PRODUCT_OWNER: 'bg-[#FFE3DC] text-[#B93826] border border-[#F8C1B7]',
-  SCRUM_MASTER: 'bg-[#EDE9FE] text-[#5B21B6] border border-[#DDD6FE]',
-  DEVELOPER: 'bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]',
-  CLIENT: 'bg-[#F1F2F4] text-[#292D35] border border-[#CDD1D8]',
-  ADMIN: 'bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]',
+  PRODUCT_OWNER: 'bg-brand-selection text-brand-action border border-brand-primary/30',
+  SCRUM_MASTER: 'bg-[#EDE9FE] dark:bg-[#2E1F4D] text-[#5B21B6] dark:text-[#C4B5FD] border border-[#DDD6FE] dark:border-[#8B5CF6]/40',
+  DEVELOPER: 'bg-[#E0F2FE] dark:bg-[#0C4A6E]/50 text-[#0369A1] dark:text-[#7DD3FC] border border-[#BAE6FD] dark:border-[#38BDF8]/40',
+  CLIENT: 'bg-bg-page text-fg-primary border border-border-subtle',
+  ADMIN: 'bg-[#DCFCE7] dark:bg-[#123823] text-[#166534] dark:text-[#86EFAC] border border-[#BBF7D0] dark:border-[#22C55E]/40',
 }
 
 const ROLE_OPTIONS = [
-  { code: ROLE_CODES.PRODUCT_OWNER, label: 'P01 · Product Owner' },
-  { code: ROLE_CODES.SCRUM_MASTER, label: 'P02 · Scrum Master' },
-  { code: ROLE_CODES.DEVELOPER, label: 'P03 · Programador' },
-  { code: ROLE_CODES.CLIENT, label: 'P04 · Cliente Final' },
-  { code: ROLE_CODES.ADMIN, label: 'P05 · Administrador do Sistema' },
+  { code: ROLE_CODES.PRODUCT_OWNER, label: 'Product Owner' },
+  { code: ROLE_CODES.SCRUM_MASTER, label: 'Scrum Master' },
+  { code: ROLE_CODES.DEVELOPER, label: 'Programador' },
+  { code: ROLE_CODES.CLIENT, label: 'Cliente Final' },
+  { code: ROLE_CODES.ADMIN, label: 'Administrador do Sistema' },
 ]
 
 /**
  * TeamSettingsPage Component
- * Baseado no Figma frame 342:1613 ("Definições da equipa", 1440x900)
  */
 export function TeamSettingsPage() {
   const navigate = useNavigate()
   const { currentUser, role, roleLabel } = useSafeAuth()
   const dataContext = useData()
 
-  const [activeTab, setActiveTab] = useState('geral') // 'geral' | 'membros' | 'permissoes' | 'auditoria' | 'sprints' | 'notificacoes' | 'integracoes'
-  const members = dataContext.users || []
+  const workspaceConfig = dataContext.workspaceConfig || {}
+  const projectName = workspaceConfig.projectName || 'Plataforma de Produto'
+  const configuredTeamName = workspaceConfig.teamName || 'Equipa Principal'
+
+  const [activeTab, setActiveTab] = useState('geral')
+  const members = useMemo(() => dataContext.users || [], [dataContext.users])
   const logs = useMemo(() => dataContext.logs || [], [dataContext.logs])
+  const sprints = useMemo(() => dataContext.sprints || [], [dataContext.sprints])
+  const activeSprintLabel = dataContext.activeSprintLabel || 'Sem sprint ativo'
+  const activeSprintDateRange = dataContext.activeSprintDateRange || 'Sem datas definidas'
+
+  const adminMember = useMemo(
+    () => members.find((m) => m.role === ROLES.ADMIN || m.role === 'ADMIN' || m.roleCode === 'P05') || null,
+    [members]
+  )
+  const poMember = useMemo(
+    () => members.find((m) => m.role === ROLES.PRODUCT_OWNER || m.roleCode === 'P01') || null,
+    [members]
+  )
+
   const [feedbackMsg, setFeedbackMsg] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [logSearch, setLogSearch] = useState('')
 
-  // Estados dos campos da equipa
-  const [teamName, setTeamName] = useState('Giro Dev Team')
-  const [visibility, setVisibility] = useState('Privada · Apenas membros')
-  const [timezone, setTimezone] = useState('Europa/Lisboa (GMT+0)')
-  const [description, setDescription] = useState('Equipa de desenvolvimento e evolução contínua da plataforma Giro.')
+  const [teamName, setTeamName] = useState(configuredTeamName)
+  const [visibility, setVisibility] = useState(workspaceConfig.visibility || 'Privada · Apenas membros')
+  const [timezone, setTimezone] = useState(workspaceConfig.timezone || 'Europa/Lisboa (GMT+0)')
+  const [description, setDescription] = useState(
+    workspaceConfig.description || 'Equipa responsável pela evolução contínua e entregas do produto.'
+  )
 
-  // Toggles de notificações da equipa
   const [notifySprintMilestones, setNotifySprintMilestones] = useState(true)
   const [notifyBlockers, setNotifyBlockers] = useState(true)
   const [notifyDigest, setNotifyDigest] = useState(false)
 
-  // Modal de Pedido de Convite / Contacto
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('Programador')
@@ -106,6 +121,14 @@ export function TeamSettingsPage() {
 
   const handleSaveGeneral = (e) => {
     e?.preventDefault()
+    if (dataContext.updateWorkspaceConfig) {
+      dataContext.updateWorkspaceConfig({
+        teamName: teamName.trim() || 'Equipa Principal',
+        visibility: visibility.trim() || 'Privada · Apenas membros',
+        timezone: timezone.trim() || 'Europa/Lisboa (GMT+0)',
+        description: description.trim(),
+      })
+    }
     showSuccess('✓ Informações da equipa atualizadas com sucesso!')
   }
 
@@ -113,7 +136,8 @@ export function TeamSettingsPage() {
     e?.preventDefault()
     if (!inviteEmail) return
 
-    showSuccess(`✓ Pedido de convite para ${inviteEmail} (${inviteRole}) enviado ao Administrador do Sistema (Diogo Ferreira).`)
+    const adminTarget = adminMember ? ` (${adminMember.name})` : ''
+    showSuccess(`✓ Pedido de convite para ${inviteEmail} (${inviteRole}) encaminhado ao Administrador${adminTarget}.`)
     setShowInviteModal(false)
     setInviteEmail('')
   }
@@ -122,7 +146,7 @@ export function TeamSettingsPage() {
     if (!dataContext.updateUserRoleOrStatus) return
     try {
       await dataContext.updateUserRoleOrStatus(member.id, { role: newRoleCode })
-      showSuccess(`✓ Papel de ${member.name} atualizado para ${getRoleLabel(newRoleCode)} (${newRoleCode}).`)
+      showSuccess(`✓ Papel de ${member.name} atualizado para ${getRoleLabel(newRoleCode)}.`)
     } catch (err) {
       showError(err.message || 'Não foi possível atualizar o papel do utilizador.')
     }
@@ -141,19 +165,19 @@ export function TeamSettingsPage() {
 
   return (
     <div className="w-full space-y-6 select-none">
-      {/* 1. Cabeçalho de Navegação Estrutural */}
+      {/* 1. Cabeçalho Estrutural */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-5">
         <div>
           <div className="flex items-center gap-2 text-xs text-fg-secondary mb-1">
-            <span>Plataforma de Produto</span>
+            <span>{projectName}</span>
             <span>/</span>
-            <span className="font-medium text-fg-primary">Giro Dev Team</span>
+            <span className="font-medium text-fg-primary">{configuredTeamName}</span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-bold text-fg-primary tracking-tight">
             Definições da Equipa
           </h1>
           <p className="text-sm text-fg-secondary mt-1">
-            Gestão de membros, permissões por papel (P01–P05), auditoria, fluxo de trabalho e integrações.
+            Gestão de membros, permissões por papel, auditoria, fluxo de trabalho e integrações.
           </p>
         </div>
 
@@ -170,7 +194,7 @@ export function TeamSettingsPage() {
       {feedbackMsg && (
         <div
           role="status"
-          className="p-3.5 rounded-xl bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0] text-sm font-medium animate-in fade-in duration-200"
+          className="p-3.5 rounded-xl bg-[#DCFCE7] dark:bg-[#123823] text-[#166534] dark:text-[#86EFAC] border border-[#BBF7D0] dark:border-[#22C55E]/40 text-sm font-medium animate-in fade-in duration-200"
         >
           {feedbackMsg}
         </div>
@@ -185,24 +209,24 @@ export function TeamSettingsPage() {
         </div>
       )}
 
-      {/* 2. Banner de Resumo de Acesso do Utilizador Atual (Figma 342:1672) */}
-      <div className="p-5 rounded-2xl bg-white border border-border-subtle shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* 2. Banner de Resumo de Acesso */}
+      <div className="p-5 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start sm:items-center gap-4">
           <Avatar
-            name={currentUser?.name || 'Sofia Costa'}
+            name={currentUser?.name || 'Utilizador'}
             size={40}
             shape="circle"
-            className="bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]"
+            className="bg-brand-selection text-brand-action border border-brand-primary/30"
           />
 
           <div className="space-y-0.5">
             <h2 className="text-sm sm:text-base font-bold text-fg-primary">
-              Está a consultar como {currentUser?.name || 'Sofia Costa'} ({roleLabel || 'Product Owner'})
+              Está a consultar como {currentUser?.name || 'Utilizador'} ({roleLabel})
             </h2>
             <p className="text-xs sm:text-sm text-fg-secondary max-w-2xl leading-relaxed">
               {isAdmin
-                ? 'Como Administrador do Sistema (P05), dispõe de privilégios totais para gerir utilizadores, atribuir papéis RBAC e consultar logs de auditoria.'
-                : 'Pode consultar as definições da equipa. A gestão de contas e papéis RBAC é reservada a Diogo Ferreira (Administrador do Sistema · P05).'}
+                ? 'Como Administrador do Sistema, dispõe de privilégios totais para gerir utilizadores, atribuir permissões e consultar logs de auditoria.'
+                : `Pode consultar as definições da equipa. A gestão de contas e permissões é reservada ao Administrador do Sistema${adminMember ? ` (${adminMember.name})` : ''}.`}
             </p>
           </div>
         </div>
@@ -211,22 +235,22 @@ export function TeamSettingsPage() {
           <span
             className={`px-3 py-1 rounded-md text-xs font-semibold uppercase tracking-wider ${
               isAdmin
-                ? 'bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]'
+                ? 'bg-brand-selection text-brand-action border border-brand-primary/30'
                 : 'bg-bg-page text-fg-secondary border border-border-subtle'
             }`}
           >
-            {isAdmin ? 'Acesso Total (P05)' : 'Só de leitura'}
+            {isAdmin ? 'Acesso Total' : 'Só de leitura'}
           </span>
         </div>
       </div>
 
-      {/* 3. Disposição Principal: Barra de Definições Lateral + Painel de Conteúdo (Figma 342:1679) */}
+      {/* 3. Disposição Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Barra Lateral do Menu de Definições (Figma 342:1680) */}
+        {/* Barra Lateral do Menu de Definições */}
         <aside className="lg:col-span-4 xl:col-span-3 space-y-5">
           <nav
             aria-label="Menu de definições da equipa"
-            className="p-3 bg-white rounded-2xl border border-border-subtle shadow-xs space-y-1"
+            className="p-3 bg-bg-surface rounded-2xl border border-border-subtle shadow-xs space-y-1"
           >
             <div className="px-3 py-2 text-[11px] font-bold text-fg-secondary uppercase tracking-wider">
               DEFINIÇÕES DA EQUIPA
@@ -249,7 +273,7 @@ export function TeamSettingsPage() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-[#FFE3DC] text-brand-action font-semibold'
+                      ? 'bg-brand-selection text-brand-action font-semibold'
                       : 'text-fg-secondary hover:text-fg-primary hover:bg-bg-page'
                   }`}
                 >
@@ -262,32 +286,37 @@ export function TeamSettingsPage() {
             })}
           </nav>
 
-          {/* Cartão do Administrador da Equipa (Figma 342:1697) */}
-          <div className="p-5 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-3.5">
+          {/* Cartão de Apoio / Administrador */}
+          <div className="p-5 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-3.5">
             <h3 className="text-sm font-bold text-fg-primary">
               Precisa de alterar algo?
             </h3>
 
-            <div className="flex items-center gap-3">
-              <Avatar
-                name="Diogo Ferreira"
-                size={36}
-                shape="circle"
-                className="bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]"
-              />
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-fg-primary truncate">
-                  Diogo Ferreira
-                </div>
-                <div className="text-xs text-fg-secondary flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
-                  <span>P05 · Administrador do Sistema</span>
+            {adminMember ? (
+              <div className="flex items-center gap-3">
+                <Avatar
+                  name={adminMember.name}
+                  size={36}
+                  shape="circle"
+                  className="bg-brand-selection text-brand-action border border-brand-primary/30"
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-fg-primary truncate">
+                    {adminMember.name}
+                  </div>
+                  <div className="text-xs text-fg-secondary">
+                    Administrador do Sistema
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-xs text-fg-secondary">
+                A listagem de administradores não está disponível para o seu nível de acesso.
+              </p>
+            )}
 
             <p className="text-xs text-fg-secondary leading-relaxed">
-              Envie um pedido ao Administrador do Sistema para atualizar a equipa ou alterar permissões RBAC.
+              Envie um pedido ao Administrador do Sistema para atualizar a equipa ou alterar permissões.
             </p>
 
             <button
@@ -300,41 +329,39 @@ export function TeamSettingsPage() {
           </div>
         </aside>
 
-        {/* Painel Central das Definições (Figma 342:1707) */}
+        {/* Painel Central das Definições */}
         <main className="lg:col-span-8 xl:col-span-9 space-y-6">
-          {/* TAB 1: GERAL (Figma 342:1708) */}
+          {/* TAB 1: GERAL */}
           {activeTab === 'geral' && (
             <div className="space-y-6">
-              <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+              <section className="p-6 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle pb-4">
                   <h2 className="text-xl font-bold text-fg-primary">
                     Informações da equipa
                   </h2>
                   <span className="text-xs text-fg-secondary flex items-center gap-1.5 bg-bg-page px-2.5 py-1 rounded-md">
                     <User size={14} />
-                    <span>{isAdmin ? 'Pode editar como Administrador (P05)' : 'Apenas o Administrador pode editar'}</span>
+                    <span>{isAdmin ? 'Pode editar como Administrador' : 'Apenas o Administrador pode editar'}</span>
                   </span>
                 </div>
 
-                {/* Identidade da Equipa (Figma 342:1714) */}
                 <div className="flex items-center gap-4">
                   <Avatar
-                    name="Giro Dev Team"
+                    name={teamName}
                     size={48}
                     shape="circle"
-                    className="bg-[#FFE3DC] text-brand-action font-bold text-base border-2 border-[#F8C1B7]"
+                    className="bg-brand-selection text-brand-action font-bold text-base border-2 border-brand-primary/30"
                   />
                   <div>
                     <h3 className="text-base font-bold text-fg-primary">
-                      Giro Dev Team
+                      {teamName}
                     </h3>
                     <p className="text-xs text-fg-secondary">
-                      {members.length} utilizadores registados · Plataforma de Produto
+                      {members.length} utilizadores registados · {projectName}
                     </p>
                   </div>
                 </div>
 
-                {/* Formulário de Dados Gerais (Figma 342:1720) */}
                 <form onSubmit={handleSaveGeneral} className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <TextField
@@ -342,7 +369,7 @@ export function TeamSettingsPage() {
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       disabled={!isAdmin}
-                      className={isAdmin ? 'bg-white' : 'bg-bg-page opacity-80 cursor-not-allowed'}
+                      className={isAdmin ? '' : 'bg-bg-page opacity-80 cursor-not-allowed'}
                     />
 
                     <TextField
@@ -350,7 +377,7 @@ export function TeamSettingsPage() {
                       value={visibility}
                       onChange={(e) => setVisibility(e.target.value)}
                       disabled={!isAdmin}
-                      className={isAdmin ? 'bg-white' : 'bg-bg-page opacity-80 cursor-not-allowed'}
+                      className={isAdmin ? '' : 'bg-bg-page opacity-80 cursor-not-allowed'}
                     />
 
                     <TextField
@@ -358,7 +385,7 @@ export function TeamSettingsPage() {
                       value={timezone}
                       onChange={(e) => setTimezone(e.target.value)}
                       disabled={!isAdmin}
-                      className={isAdmin ? 'bg-white' : 'bg-bg-page opacity-80 cursor-not-allowed'}
+                      className={isAdmin ? '' : 'bg-bg-page opacity-80 cursor-not-allowed'}
                     />
                   </div>
 
@@ -367,14 +394,14 @@ export function TeamSettingsPage() {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     disabled={!isAdmin}
-                    className={isAdmin ? 'bg-white' : 'bg-bg-page opacity-80 cursor-not-allowed'}
+                    className={isAdmin ? '' : 'bg-bg-page opacity-80 cursor-not-allowed'}
                   />
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
                     <p className="text-xs text-fg-secondary">
                       {isAdmin
-                        ? 'Todas as alterações são sincronizadas imediatamente com a equipa.'
-                        : 'As alterações a estes dados devem ser solicitadas a Diogo Ferreira (P05).'}
+                        ? 'Todas as alterações são aplicadas imediatamente no espaço de trabalho.'
+                        : `As alterações a estes dados devem ser solicitadas ao Administrador${adminMember ? ` (${adminMember.name})` : ''}.`}
                     </p>
 
                     {isAdmin && (
@@ -386,16 +413,15 @@ export function TeamSettingsPage() {
                 </form>
               </section>
 
-              {/* Configuração de Trabalho (Figma 342:1780) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-5 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-4">
+                <div className="p-5 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-4">
                   <h3 className="text-base font-bold text-fg-primary">
                     Sprints e fluxo de trabalho
                   </h3>
 
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-semibold text-fg-primary">Sprint 12</span>
-                    <span className="text-fg-secondary text-xs">12–23 out. 2026</span>
+                    <span className="font-semibold text-fg-primary">{activeSprintLabel}</span>
+                    <span className="text-fg-secondary text-xs">{activeSprintDateRange}</span>
                   </div>
 
                   <p className="text-xs text-fg-secondary bg-bg-page p-2.5 rounded-lg border border-border-subtle">
@@ -405,7 +431,7 @@ export function TeamSettingsPage() {
                   <div className="h-px bg-border-subtle" />
 
                   <p className="text-xs text-fg-secondary">
-                    Estimativa em story points · Duração do sprint: 2 semanas
+                    Estimativa em story points · {sprints.length} sprint(s) registado(s)
                   </p>
 
                   <button
@@ -417,23 +443,24 @@ export function TeamSettingsPage() {
                   </button>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-4">
+                <div className="p-5 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-4">
                   <h3 className="text-base font-bold text-fg-primary">
                     Permissões e segurança
                   </h3>
 
                   <p className="text-xs text-fg-secondary leading-relaxed">
-                    Acesso segmentado pelos 5 papéis oficiais (P01–P05) com controlo estrito RBAC.
+                    Acesso segmentado pelos 5 perfis de equipa com controlo de acessos baseado em papéis.
                   </p>
 
                   <p className="text-xs text-fg-secondary leading-relaxed bg-bg-page p-2.5 rounded-lg border border-border-subtle">
-                    Sofia Costa (P01) define prioridades do produto. Diogo Ferreira (P05) gere contas, papéis e logs de auditoria.
+                    {poMember ? `${poMember.name} (Product Owner)` : 'Product Owner'} define prioridades do produto.{' '}
+                    {adminMember ? `${adminMember.name} (Administrador)` : 'Administrador do Sistema'} gere contas, permissões e logs de auditoria.
                   </p>
 
                   <div className="h-px bg-border-subtle" />
 
                   <p className="text-xs text-fg-secondary">
-                    RNF-SEG-01: Temporizador de inatividade configurado para 60 minutos.
+                    Temporizador de inatividade configurado para 60 minutos.
                   </p>
 
                   <button
@@ -448,16 +475,16 @@ export function TeamSettingsPage() {
             </div>
           )}
 
-          {/* TAB 2: MEMBROS E FUNÇÕES (Figma 342:1726) */}
+          {/* TAB 2: MEMBROS E FUNÇÕES */}
           {activeTab === 'membros' && (
-            <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+            <section className="p-6 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-4">
                 <div>
                   <h2 className="text-xl font-bold text-fg-primary">
                     Membros e funções
                   </h2>
                   <p className="text-xs text-fg-secondary mt-0.5">
-                    {members.length} utilizadores · Papéis atribuídos pelo Administrador do Sistema (CA9.1 / CA9.2)
+                    {members.length} utilizadores · Papéis geridos pelo Administrador do Sistema
                   </p>
                 </div>
 
@@ -470,16 +497,15 @@ export function TeamSettingsPage() {
                 </Button>
               </div>
 
-              {/* Tabela de Membros */}
               <div className="overflow-x-auto rounded-xl border border-border-subtle">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-bg-page border-b border-border-subtle text-[11px] font-bold text-fg-secondary uppercase tracking-wider">
                       <th className="py-3 px-4">Membro</th>
-                      <th className="py-3 px-4">Função (P01–P05)</th>
+                      <th className="py-3 px-4">Função</th>
                       <th className="py-3 px-4">Âmbito de atuação</th>
                       <th className="py-3 px-4">Estado</th>
-                      {isAdmin && <th className="py-3 px-4 text-right">Gestão RBAC</th>}
+                      {isAdmin && <th className="py-3 px-4 text-right">Gestão de Acessos</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle text-xs">
@@ -487,7 +513,7 @@ export function TeamSettingsPage() {
                       <tr>
                         <td colSpan={isAdmin ? 5 : 4} className="py-8 px-4 text-center text-fg-secondary">
                           {isClient
-                            ? 'A listagem de membros internos está restrita para o perfil Cliente Final (P04).'
+                            ? 'A listagem de membros internos está restrita para o perfil Cliente Final.'
                             : 'Nenhum utilizador carregado no momento.'}
                         </td>
                       </tr>
@@ -504,7 +530,7 @@ export function TeamSettingsPage() {
                                   name={member.name}
                                   size={36}
                                   shape="circle"
-                                  className="bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]"
+                                  className="bg-brand-selection text-brand-action border border-brand-primary/30"
                                 />
                                 <div>
                                   <div className="font-semibold text-fg-primary text-sm">
@@ -519,12 +545,12 @@ export function TeamSettingsPage() {
 
                             <td className="py-3.5 px-4">
                               <span className={`inline-block px-2.5 py-1 rounded text-xs font-medium ${badgeClass}`}>
-                                {roleCode} · {getRoleLabel(member.role)}
+                                {getRoleLabel(member.role)}
                               </span>
                             </td>
 
                             <td className="py-3.5 px-4 text-fg-secondary max-w-xs">
-                              {member.scope || 'Membro da plataforma GIRO'}
+                              {member.scope || 'Membro da plataforma'}
                             </td>
 
                             <td className="py-3.5 px-4">
@@ -541,7 +567,7 @@ export function TeamSettingsPage() {
                                     aria-label={`Alterar papel de ${member.name}`}
                                     value={roleCode}
                                     onChange={(e) => handleRoleChange(member, e.target.value)}
-                                    className="h-8 px-2 rounded-lg border border-border-subtle bg-white text-xs text-fg-primary cursor-pointer"
+                                    className="h-8 px-2 rounded-lg border border-border-subtle bg-bg-surface text-xs text-fg-primary cursor-pointer"
                                   >
                                     {ROLE_OPTIONS.map((opt) => (
                                       <option key={opt.code} value={opt.code}>
@@ -568,20 +594,20 @@ export function TeamSettingsPage() {
               </div>
 
               <div className="p-3.5 rounded-xl bg-bg-page border border-border-subtle text-xs text-fg-secondary leading-relaxed">
-                Apenas Diogo Ferreira (Administrador do Sistema · P05) pode alterar papéis RBAC ou desativar contas (CA9.1 / CA9.2).
+                Apenas o Administrador do Sistema{adminMember ? ` (${adminMember.name})` : ''} pode alterar papéis de acesso ou desativar contas.
               </div>
             </section>
           )}
 
-          {/* TAB 3: MATRIZ DE PERMISSÕES RBAC */}
+          {/* TAB 3: MATRIZ DE PERMISSÕES */}
           {activeTab === 'permissoes' && (
-            <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+            <section className="p-6 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-fg-primary">
-                  Matriz de Controlo de Acessos (RBAC)
+                  Matriz de Controlo de Acessos
                 </h2>
                 <p className="text-xs text-fg-secondary mt-1">
-                  Direitos de visualização, edição e gestão para os 5 papéis definidos na plataforma Giro (P01–P05).
+                  Direitos de visualização, edição e gestão para os 5 papéis definidos na plataforma.
                 </p>
               </div>
 
@@ -590,62 +616,37 @@ export function TeamSettingsPage() {
                   <thead>
                     <tr className="bg-bg-page border-b border-border-subtle text-[11px] font-bold text-fg-secondary uppercase tracking-wider">
                       <th className="py-3 px-4">Capacidade / Privilégio</th>
-                      <th className="py-3 px-3 text-center">Administrador (P05)</th>
-                      <th className="py-3 px-3 text-center">Product Owner (P01)</th>
-                      <th className="py-3 px-3 text-center">Scrum Master (P02)</th>
-                      <th className="py-3 px-3 text-center">Programador (P03)</th>
-                      <th className="py-3 px-3 text-center">Cliente Final (P04)</th>
+                      <th className="py-3 px-3 text-center">Administrador</th>
+                      <th className="py-3 px-3 text-center">Product Owner</th>
+                      <th className="py-3 px-3 text-center">Scrum Master</th>
+                      <th className="py-3 px-3 text-center">Programador</th>
+                      <th className="py-3 px-3 text-center">Cliente Final</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
                     {[
                       { key: 'canCreatePedidos', label: 'Criar pedidos de funcionalidade' },
-                      { key: 'canVote', label: 'Votar em pedidos (RNF-SEG-03: 1 voto)' },
+                      { key: 'canVote', label: 'Votar em pedidos (1 voto por utilizador)' },
                       { key: 'canManageBacklog', label: 'Priorizar e aprovar Backlog' },
+                      { key: 'canManageSprintLifecycle', label: 'Criar, editar e concluir Sprints' },
                       { key: 'canManageSprint', label: 'Mover tarefas no Sprint Kanban' },
                       { key: 'canEditSettings', label: 'Alterar definições da equipa' },
-                      { key: 'canManageUsers', label: 'Gerir contas e papéis RBAC' },
+                      { key: 'canManageUsers', label: 'Gerir contas e permissões' },
                       { key: 'canViewTraceability', label: 'Consultar Matriz de Rastreabilidade' },
                     ].map((priv) => (
                       <tr key={priv.key} className="hover:bg-bg-page/40 transition-colors">
                         <td className="py-3 px-4 font-medium text-fg-primary">
                           {priv.label}
                         </td>
-                        <td className="py-3 px-3 text-center">
-                          {ROLE_PERMISSIONS.ADMIN[priv.key] ? (
-                            <span className="text-[#16A34A] font-bold">✓</span>
-                          ) : (
-                            <span className="text-fg-disabled">✕</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          {ROLE_PERMISSIONS.PRODUCT_OWNER[priv.key] ? (
-                            <span className="text-[#16A34A] font-bold">✓</span>
-                          ) : (
-                            <span className="text-fg-disabled">✕</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          {ROLE_PERMISSIONS.SCRUM_MASTER[priv.key] ? (
-                            <span className="text-[#16A34A] font-bold">✓</span>
-                          ) : (
-                            <span className="text-fg-disabled">✕</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          {ROLE_PERMISSIONS.DEVELOPER[priv.key] ? (
-                            <span className="text-[#16A34A] font-bold">✓</span>
-                          ) : (
-                            <span className="text-fg-disabled">✕</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          {ROLE_PERMISSIONS.CLIENT[priv.key] ? (
-                            <span className="text-[#16A34A] font-bold">✓</span>
-                          ) : (
-                            <span className="text-fg-disabled">✕</span>
-                          )}
-                        </td>
+                        {['ADMIN', 'PRODUCT_OWNER', 'SCRUM_MASTER', 'DEVELOPER', 'CLIENT'].map((rKey) => (
+                          <td key={rKey} className="py-3 px-3 text-center">
+                            {ROLE_PERMISSIONS[rKey][priv.key] ? (
+                              <span className="text-[#16A34A] dark:text-[#86EFAC] font-bold">✓</span>
+                            ) : (
+                              <span className="text-fg-disabled">✕</span>
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -654,16 +655,16 @@ export function TeamSettingsPage() {
             </section>
           )}
 
-          {/* TAB 4: LOGS DE AUDITORIA (CA9.4) */}
+          {/* TAB 4: LOGS DE AUDITORIA */}
           {activeTab === 'auditoria' && (
-            <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+            <section className="p-6 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-4">
                 <div>
                   <h2 className="text-xl font-bold text-fg-primary">
-                    Registos de Auditoria (CA9.4)
+                    Registos de Auditoria
                   </h2>
                   <p className="text-xs text-fg-secondary mt-0.5">
-                    Histórico cronológico de criações, alterações de estado, priorização IA e permissões RBAC.
+                    Histórico cronológico de criações, alterações de estado, priorização assistida, sprints e permissões.
                   </p>
                 </div>
 
@@ -679,8 +680,8 @@ export function TeamSettingsPage() {
               </div>
 
               {isClient ? (
-                <div className="p-6 rounded-xl bg-[#FEE2E2]/40 border border-[#FECACA] text-xs text-[#DC2626] font-medium">
-                  Acesso restrito (HTTP 403 / CA9.3): o perfil <strong>Cliente Final (P04)</strong> não tem autorização para consultar logs internos de auditoria.
+                <div className="p-6 rounded-xl bg-[#FEE2E2]/40 dark:bg-[#451B1B]/60 border border-[#FECACA] dark:border-[#EF4444]/40 text-xs text-[#DC2626] dark:text-[#FCA5A5] font-medium">
+                  Acesso restrito: o perfil <strong>Cliente Final</strong> não tem autorização para consultar logs internos de auditoria.
                 </div>
               ) : filteredLogs.length === 0 ? (
                 <div className="p-8 rounded-xl bg-bg-page border border-border-subtle text-center text-xs text-fg-secondary">
@@ -708,12 +709,12 @@ export function TeamSettingsPage() {
                             <div className="font-semibold text-fg-primary">{entry.userName}</div>
                             {entry.userRole && (
                               <div className="text-[11px] text-fg-secondary">
-                                {entry.userRole} · {getRoleLabel(entry.userRole)}
+                                {getRoleLabel(entry.userRole)}
                               </div>
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 rounded bg-[#FFE3DC] text-brand-action font-mono font-semibold text-[11px]">
+                            <span className="px-2 py-0.5 rounded bg-brand-selection text-brand-action font-mono font-semibold text-[11px]">
                               {entry.action}
                             </span>
                           </td>
@@ -734,7 +735,7 @@ export function TeamSettingsPage() {
 
           {/* TAB 5: SPRINTS E FLUXO DE TRABALHO */}
           {activeTab === 'sprints' && (
-            <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+            <section className="p-6 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-fg-primary">
                   Sprints e Fluxo de Trabalho
@@ -747,14 +748,14 @@ export function TeamSettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 rounded-xl bg-bg-page border border-border-subtle">
                   <div className="text-xs text-fg-secondary font-medium">Sprint Atual</div>
-                  <div className="text-lg font-bold text-fg-primary mt-1">Sprint 12</div>
-                  <div className="text-xs text-fg-secondary mt-0.5">12 a 23 de outubro de 2026</div>
+                  <div className="text-lg font-bold text-fg-primary mt-1">{activeSprintLabel}</div>
+                  <div className="text-xs text-fg-secondary mt-0.5">{activeSprintDateRange}</div>
                 </div>
 
                 <div className="p-4 rounded-xl bg-bg-page border border-border-subtle">
-                  <div className="text-xs text-fg-secondary font-medium">Duração do Ciclo</div>
-                  <div className="text-lg font-bold text-fg-primary mt-1">2 Semanas</div>
-                  <div className="text-xs text-fg-secondary mt-0.5">Planeamento às segundas-feiras</div>
+                  <div className="text-xs text-fg-secondary font-medium">Sprints Criados</div>
+                  <div className="text-lg font-bold text-fg-primary mt-1">{sprints.length}</div>
+                  <div className="text-xs text-fg-secondary mt-0.5">Geridos na timeline do Kanban</div>
                 </div>
 
                 <div className="p-4 rounded-xl bg-bg-page border border-border-subtle">
@@ -769,16 +770,16 @@ export function TeamSettingsPage() {
                   Etapas do Quadro Kanban do Sprint
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                  <div className="p-3 bg-white rounded-lg border border-border-subtle font-medium text-fg-primary">
+                  <div className="p-3 bg-bg-surface rounded-lg border border-border-subtle font-medium text-fg-primary">
                     1. Por fazer
                   </div>
-                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#5B21B6] bg-[#EDE9FE]/20">
+                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#5B21B6] dark:text-[#C4B5FD] bg-[#EDE9FE]/30 dark:bg-[#2E1F4D]">
                     2. Em desenvolvimento
                   </div>
-                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#7A4D00] bg-[#FEF3C7]/20">
+                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#7A4D00] dark:text-[#FCD34D] bg-[#FEF3C7]/30 dark:bg-[#453009]">
                     3. Em revisão
                   </div>
-                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#166534] bg-[#DCFCE7]/20">
+                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#166534] dark:text-[#86EFAC] bg-[#DCFCE7]/30 dark:bg-[#123823]">
                     4. Concluído
                   </div>
                 </div>
@@ -796,13 +797,13 @@ export function TeamSettingsPage() {
 
           {/* TAB 6: NOTIFICAÇÕES DA EQUIPA */}
           {activeTab === 'notificacoes' && (
-            <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+            <section className="p-6 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-fg-primary">
                   Notificações da Equipa
                 </h2>
                 <p className="text-xs text-fg-secondary mt-1">
-                  Controlo de envio de alertas sonoros, e-mails e avisos push de sprint.
+                  Controlo de envio de alertas e avisos de ciclo de Sprint.
                 </p>
               </div>
 
@@ -813,13 +814,13 @@ export function TeamSettingsPage() {
                       Marcos e encerramentos de Sprint
                     </h3>
                     <p className="text-xs text-fg-secondary">
-                      Avisar toda a equipa 2 dias antes do encerramento oficial do sprint.
+                      Avisar toda a equipa antes do encerramento oficial do sprint.
                     </p>
                   </div>
                   <Toggle
                     checked={notifySprintMilestones}
                     onChange={setNotifySprintMilestones}
-                    ariaLabel="Alternar marcos de sprint"
+                    aria-label="Alternar marcos de sprint"
                   />
                 </div>
 
@@ -829,20 +830,20 @@ export function TeamSettingsPage() {
                       Bloqueios e impedimentos críticos
                     </h3>
                     <p className="text-xs text-fg-secondary">
-                      Alertar imediatamente o Scrum Master quando uma tarefa for marcada com impedimento.
+                      Alertar o Scrum Master quando uma tarefa for marcada com impedimento.
                     </p>
                   </div>
                   <Toggle
                     checked={notifyBlockers}
                     onChange={setNotifyBlockers}
-                    ariaLabel="Alternar bloqueios críticos"
+                    aria-label="Alternar bloqueios críticos"
                   />
                 </div>
 
                 <div className="flex items-center justify-between pt-3">
                   <div>
                     <h3 className="text-sm font-semibold text-fg-primary">
-                      Resumo semanal por e-mail (Digest)
+                      Resumo semanal por e-mail
                     </h3>
                     <p className="text-xs text-fg-secondary">
                       Enviar todas as sextas-feiras um sumário de pedidos aprovados e velocidade atingida.
@@ -851,7 +852,7 @@ export function TeamSettingsPage() {
                   <Toggle
                     checked={notifyDigest}
                     onChange={setNotifyDigest}
-                    ariaLabel="Alternar resumo semanal"
+                    aria-label="Alternar resumo semanal"
                   />
                 </div>
               </div>
@@ -860,64 +861,48 @@ export function TeamSettingsPage() {
 
           {/* TAB 7: INTEGRAÇÕES */}
           {activeTab === 'integracoes' && (
-            <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+            <section className="p-6 rounded-2xl bg-bg-surface border border-border-subtle shadow-xs space-y-5">
               <div>
                 <h2 className="text-xl font-bold text-fg-primary">
-                  Integrações e Ferramentas Conectadas
+                  Integrações Externas
                 </h2>
                 <p className="text-xs text-fg-secondary mt-1">
-                  Sincronização bidirecional de repositórios de código, tickets e design tokens.
+                  Ligações opcionais de repositórios de código, ferramentas de design e notificações externas.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-white border border-border-subtle flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="font-bold text-fg-primary text-sm">GitHub &amp; GitLab</div>
-                    <p className="text-xs text-fg-secondary">
-                      Sincronização de commits com histórias (US-XX).
-                    </p>
-                    <span className="inline-block text-[11px] font-medium text-[#166534] bg-[#DCFCE7] px-2 py-0.5 rounded">
-                      Conectado · Repositório Giro
-                    </span>
+                {[
+                  {
+                    name: 'GitHub & GitLab',
+                    desc: 'Sincronização de commits e pull requests com User Stories.',
+                  },
+                  {
+                    name: 'Figma Design System',
+                    desc: 'Referência de ecrãs e componentes de interface.',
+                  },
+                  {
+                    name: 'Jira Software',
+                    desc: 'Importação ou exportação pontual de épicos e backlog.',
+                  },
+                  {
+                    name: 'Slack & MS Teams',
+                    desc: 'Webhooks configuráveis para alertas de sprint e pedidos.',
+                  },
+                ].map((integration) => (
+                  <div
+                    key={integration.name}
+                    className="p-4 rounded-xl bg-bg-page border border-border-subtle flex items-start justify-between"
+                  >
+                    <div className="space-y-1">
+                      <div className="font-bold text-fg-primary text-sm">{integration.name}</div>
+                      <p className="text-xs text-fg-secondary">{integration.desc}</p>
+                      <span className="inline-block text-[11px] font-medium text-fg-secondary bg-bg-surface border border-border-subtle px-2 py-0.5 rounded">
+                        Não configurado
+                      </span>
+                    </div>
                   </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-white border border-border-subtle flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="font-bold text-fg-primary text-sm">Figma Desktop Plugin</div>
-                    <p className="text-xs text-fg-secondary">
-                      Extração direta de variáveis e tokens de design.
-                    </p>
-                    <span className="inline-block text-[11px] font-medium text-[#166534] bg-[#DCFCE7] px-2 py-0.5 rounded">
-                      Ativo · 264 Variáveis
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-white border border-border-subtle flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="font-bold text-fg-primary text-sm">Jira Software</div>
-                    <p className="text-xs text-fg-secondary">
-                      Mapeamento de épicos e exportação de backlog.
-                    </p>
-                    <span className="inline-block text-[11px] font-medium text-fg-secondary bg-bg-page px-2 py-0.5 rounded">
-                      Disponível
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-white border border-border-subtle flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="font-bold text-fg-primary text-sm">Slack &amp; MS Teams</div>
-                    <p className="text-xs text-fg-secondary">
-                      Webhooks de alertas para canais #sprint e #pedidos.
-                    </p>
-                    <span className="inline-block text-[11px] font-medium text-[#166534] bg-[#DCFCE7] px-2 py-0.5 rounded">
-                      Webhook ativo
-                    </span>
-                  </div>
-                </div>
+                ))}
               </div>
             </section>
           )}
@@ -931,7 +916,7 @@ export function TeamSettingsPage() {
           role="dialog"
           aria-modal="true"
         >
-          <div className="max-w-md w-full bg-white rounded-2xl border border-border-subtle p-6 shadow-xl space-y-4 animate-in zoom-in-95 duration-150">
+          <div className="max-w-md w-full bg-bg-surface rounded-2xl border border-border-subtle p-6 shadow-xl space-y-4 animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-fg-primary">
                 Pedir Convite de Membro
@@ -946,14 +931,14 @@ export function TeamSettingsPage() {
             </div>
 
             <p className="text-xs text-fg-secondary leading-relaxed">
-              Indique o endereço de e-mail do colaborador e a função pretendida. O pedido será encaminhado para validação por <strong>Diogo Ferreira (Administrador do Sistema · P05)</strong>.
+              Indique o endereço de e-mail do colaborador e a função pretendida. O pedido será encaminhado para validação pelo Administrador do Sistema{adminMember ? ` (${adminMember.name})` : ''}.
             </p>
 
             <form onSubmit={handleSendInviteRequest} className="space-y-3.5">
               <TextField
                 label="E-mail do colaborador"
                 type="email"
-                placeholder="novo.membro@giro.com"
+                placeholder="nome@empresa.com"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 required
@@ -966,13 +951,13 @@ export function TeamSettingsPage() {
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value)}
-                  className="w-full h-11 px-3 rounded-lg border border-border-subtle bg-white text-sm text-fg-primary focus:outline-none focus:ring-2 focus:ring-brand-action/20"
+                  className="w-full h-11 px-3 rounded-lg border border-border-subtle bg-bg-surface text-sm text-fg-primary focus:outline-none focus:ring-2 focus:ring-brand-action/20"
                 >
-                  <option value={ROLE_LABELS.DEVELOPER}>Programador (Desenvolvimento · P03)</option>
-                  <option value={ROLE_LABELS.SCRUM_MASTER}>Scrum Master (Facilitação · P02)</option>
-                  <option value={ROLE_LABELS.PRODUCT_OWNER}>Product Owner (Produto · P01)</option>
-                  <option value={ROLE_LABELS.CLIENT}>Cliente Final (Votação e Feedback · P04)</option>
-                  <option value={ROLE_LABELS.ADMIN}>Administrador do Sistema (P05)</option>
+                  <option value={ROLE_LABELS.DEVELOPER}>Programador (Desenvolvimento)</option>
+                  <option value={ROLE_LABELS.SCRUM_MASTER}>Scrum Master (Facilitação)</option>
+                  <option value={ROLE_LABELS.PRODUCT_OWNER}>Product Owner (Produto)</option>
+                  <option value={ROLE_LABELS.CLIENT}>Cliente Final (Votação e Feedback)</option>
+                  <option value={ROLE_LABELS.ADMIN}>Administrador do Sistema</option>
                 </select>
               </div>
 

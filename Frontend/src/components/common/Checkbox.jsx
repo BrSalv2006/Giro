@@ -92,7 +92,7 @@ export const Checkbox = React.forwardRef(function Checkbox(
               // Estado padrão (não marcado)
               !isCheckedOrIndeterminate &&
                 !hasError &&
-                'bg-white border border-border-control group-hover:border-border-control-hover',
+                'bg-bg-surface border border-border-control group-hover:border-border-control-hover',
               // Estado marcado ou indeterminado (#B93826)
               isCheckedOrIndeterminate &&
                 !hasError &&

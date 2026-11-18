@@ -74,7 +74,7 @@ export function ComponentShowcasePage() {
     setHasVoted(votedState)
     setVoteMessage(
       votedState
-        ? '✓ Voto registado com sucesso! (RNF-SEG-03: limite de 1 voto ativo por utilizador)'
+        ? '✓ Voto registado com sucesso! (limite de 1 voto ativo por utilizador)'
         : 'Voto cancelado.'
     )
   }
@@ -437,14 +437,14 @@ export function ComponentShowcasePage() {
               value={textVal}
               onChange={(e) => setTextVal(e.target.value)}
               helperText="Indique de forma sucinta a funcionalidade desejada."
-              error={hasError ? 'O título do pedido é obrigatório (RNF-SEG-04).' : ''}
+              error={hasError ? 'O título do pedido é obrigatório.' : ''}
             />
 
             <TextField
               label="Pesquisa com Ícone"
               icon={<SearchIcon size={18} />}
               placeholder="Pesquisar pedidos por título ou palavras-chave..."
-              helperText="Sugestões automáticas em menos de 200 ms (RNF-DES-02)."
+              helperText="Sugestões automáticas instantâneas."
             />
 
             <TextField
@@ -644,7 +644,7 @@ export function ComponentShowcasePage() {
               MetricCard, StoryCard & VoteCounter (Interativo)
             </h2>
             <p className="text-sm text-fg-secondary mt-1">
-              Componentes ricos com lógica de negócio incorporada (voto único RNF-SEG-03 e cartões Kanban).
+              Componentes ricos com lógica de negócio incorporada (voto único por utilizador e cartões Kanban).
             </p>
           </div>
 
@@ -716,7 +716,7 @@ export function ComponentShowcasePage() {
                   Votação Única (VoteCounter.jsx)
                 </h4>
                 <p className="text-xs text-fg-secondary">
-                  Garante o cumprimento estrito do requisito <strong>RNF-SEG-03</strong>: cada utilizador pode votar apenas uma vez por pedido.
+                  Garante o cumprimento da regra de unicidade: cada utilizador pode votar apenas uma vez por pedido.
                 </p>
               </div>
 

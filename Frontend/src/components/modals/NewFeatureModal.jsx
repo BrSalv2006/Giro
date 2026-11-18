@@ -29,7 +29,8 @@ export function NewFeatureModal() {
   const navigate = useNavigate()
   const { isNewFeatureModalOpen, closeNewFeatureModal } = useModal()
   const { currentUser } = useAuth()
-  const { addPedido, findSimilarPedidos, toggleVote, pedidos } = useData()
+  const { addPedido, findSimilarPedidos, toggleVote, pedidos, workspaceConfig } = useData()
+  const teamName = workspaceConfig?.teamName || 'Equipa Principal'
 
   // Estados locais do formulário
   const [title, setTitle] = useState('')
@@ -184,13 +185,13 @@ export function NewFeatureModal() {
     >
       {/* Container Principal da Janela (Figma 680x700 max) */}
       <div
-        className="w-full max-w-[680px] bg-white rounded-2xl border border-border-subtle shadow-xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
+        className="w-full max-w-[680px] bg-bg-surface rounded-2xl border border-border-subtle shadow-xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 1. Header do Modal */}
         <div className="px-6 py-5 border-b border-border-subtle flex items-center justify-between bg-bg-surface select-none">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FFE3DC] text-brand-action flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-brand-selection text-brand-action flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-brand-primary" aria-hidden="true" />
             </div>
             <div>
@@ -250,7 +251,7 @@ export function NewFeatureModal() {
               onChange={handleTitleChange}
               placeholder="Ex: Permitir exportação de dados em formato CSV"
               className={cn(
-                'w-full h-11 px-3.5 rounded-lg border text-sm text-fg-primary placeholder:text-fg-disabled bg-white transition-all',
+                'w-full h-11 px-3.5 rounded-lg border text-sm text-fg-primary placeholder:text-fg-disabled bg-bg-surface transition-all',
                 'focus:outline-none focus:ring-2 focus:ring-border-focusRing',
                 errors.title
                   ? 'border-feedback-errorBorder ring-1 ring-feedback-errorBorder'
@@ -267,7 +268,7 @@ export function NewFeatureModal() {
 
             {/* Sugestões de pedidos semelhantes (CA2.1) */}
             {title.trim().length >= 3 && (isSearchingSimilar || visibleSimilar.length > 0 || voteNotice) && (
-              <div className="mt-3 rounded-xl border border-[#F8C1B7] bg-[#FFE3DC]/35 p-3.5 space-y-2.5">
+              <div className="mt-3 rounded-xl border border-brand-primary/30 bg-brand-selection/45 p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <span className="inline-flex items-center gap-1.5 font-semibold text-brand-action">
                     <Search className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -275,11 +276,11 @@ export function NewFeatureModal() {
                       ? 'A procurar pedidos semelhantes...'
                       : `${visibleSimilar.length} pedido(s) semelhante(s) encontrado(s) — evite duplicados`}
                   </span>
-                  <span className="text-[10px] font-mono text-fg-secondary">CA2.1 · &lt;200ms</span>
+                  <span className="text-[10px] font-mono text-fg-secondary">Pesquisa instantânea</span>
                 </div>
 
                 {voteNotice && (
-                  <p className="text-xs font-medium text-[#166534] bg-[#DCFCE7] border border-[#BBF7D0] rounded-lg px-2.5 py-1.5">
+                  <p className="text-xs font-medium text-[#166534] dark:text-[#86EFAC] bg-[#DCFCE7] dark:bg-[#123823] border border-[#BBF7D0] dark:border-[#22C55E]/40 rounded-lg px-2.5 py-1.5">
                     {voteNotice}
                   </p>
                 )}
@@ -292,7 +293,7 @@ export function NewFeatureModal() {
                       return (
                         <div
                           key={liveItem.id}
-                          className="rounded-lg bg-white border border-border-subtle p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                          className="rounded-lg bg-bg-surface border border-border-subtle p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                         >
                           <div className="min-w-0 space-y-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -317,7 +318,7 @@ export function NewFeatureModal() {
                                 'inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold border transition-colors cursor-pointer',
                                 hasVoted
                                   ? 'bg-brand-action text-white border-brand-action'
-                                  : 'bg-white text-brand-action border-[#F8C1B7] hover:bg-[#FFE3DC]'
+                                  : 'bg-bg-surface text-brand-action border-[#F8C1B7] hover:bg-[#FFE3DC]'
                               )}
                             >
                               <ArrowUp className="w-3 h-3" aria-hidden="true" />
@@ -364,7 +365,7 @@ export function NewFeatureModal() {
               }}
               placeholder="Descreva o problema que procura resolver, o contexto e o valor gerado para os utilizadores..."
               className={cn(
-                'w-full p-3.5 rounded-lg border text-sm text-fg-primary placeholder:text-fg-disabled bg-white transition-all resize-y min-h-[110px]',
+                'w-full p-3.5 rounded-lg border text-sm text-fg-primary placeholder:text-fg-disabled bg-bg-surface transition-all resize-y min-h-[110px]',
                 'focus:outline-none focus:ring-2 focus:ring-border-focusRing',
                 errors.description
                   ? 'border-feedback-errorBorder ring-1 ring-feedback-errorBorder'
@@ -401,14 +402,14 @@ export function NewFeatureModal() {
 
         {/* 3. Rodapé com Informação do Criador e Ações */}
         <div className="px-6 py-4 border-t border-border-subtle bg-bg-page flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 select-none">
-          {/* Creator Footer: "Giro Dev Team · Sofia Costa" */}
+          {/* Creator Footer */}
           <div className="hidden sm:flex items-center gap-2.5 text-xs text-fg-secondary min-w-0">
             <Avatar
-              name={currentUser?.name || 'Sofia Costa'}
+              name={currentUser?.name || 'Utilizador'}
               size={28}
             />
             <span className="truncate">
-              <strong className="text-fg-primary">Giro Dev Team</strong> · {currentUser?.name || 'Sofia Costa'}
+              <strong className="text-fg-primary">{teamName}</strong> · {currentUser?.name || 'Utilizador'}
             </span>
           </div>
 

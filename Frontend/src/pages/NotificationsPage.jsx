@@ -35,42 +35,51 @@ export function NotificationsPage() {
   const [prefStatus, setPrefStatus] = useState(true)
   const [prefBlockers, setPrefBlockers] = useState(true)
 
+  const prefFilteredItems = useMemo(() => {
+    return items.filter((n) => {
+      if (n.category === 'mencoes' && !prefMentions) return false
+      if (n.category === 'decisoes' && !prefStatus) return false
+      if (n.category === 'bloqueios' && !prefBlockers) return false
+      return true
+    })
+  }, [items, prefMentions, prefStatus, prefBlockers])
+
   // Notificação selecionada para o painel lateral contextual
   const selectedNotif = useMemo(() => {
-    return items.find((n) => n.id === selectedId) || items[0]
-  }, [items, selectedId])
+    return prefFilteredItems.find((n) => n.id === selectedId) || prefFilteredItems[0] || items[0]
+  }, [prefFilteredItems, items, selectedId])
 
   // Contagens dinâmicas
   const counts = useMemo(() => {
-    const unread = items.filter((n) => !n.read).length
-    const mentions = items.filter((n) => n.category === 'mencoes').length
-    const decisions = items.filter((n) => n.category === 'decisoes').length
-    const blockers = items.filter((n) => n.category === 'bloqueios').length
+    const unread = prefFilteredItems.filter((n) => !n.read).length
+    const mentions = prefFilteredItems.filter((n) => n.category === 'mencoes').length
+    const decisions = prefFilteredItems.filter((n) => n.category === 'decisoes').length
+    const blockers = prefFilteredItems.filter((n) => n.category === 'bloqueios').length
     return {
-      all: items.length,
+      all: prefFilteredItems.length,
       unread,
       mentions,
       decisions,
       blockers,
     }
-  }, [items])
+  }, [prefFilteredItems])
 
   // Filtragem conforme separador ativo
   const filteredItems = useMemo(() => {
     switch (activeTab) {
       case 'nao-lidas':
-        return items.filter((n) => !n.read)
+        return prefFilteredItems.filter((n) => !n.read)
       case 'mencoes':
-        return items.filter((n) => n.category === 'mencoes')
+        return prefFilteredItems.filter((n) => n.category === 'mencoes')
       case 'decisoes':
-        return items.filter((n) => n.category === 'decisoes')
+        return prefFilteredItems.filter((n) => n.category === 'decisoes')
       case 'bloqueios':
-        return items.filter((n) => n.category === 'bloqueios')
+        return prefFilteredItems.filter((n) => n.category === 'bloqueios')
       case 'todas':
       default:
-        return items
+        return prefFilteredItems
     }
-  }, [items, activeTab])
+  }, [prefFilteredItems, activeTab])
 
   // Agrupamento temporal (HOJE, ONTEM, ESTA SEMANA)
   const groupedItems = useMemo(() => {
@@ -116,9 +125,9 @@ export function NotificationsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-5">
         <div>
           <div className="flex items-center gap-2 text-xs text-fg-secondary mb-1">
-            <span>Plataforma de Produto</span>
+            <span>{dataContext.workspaceConfig?.projectName || 'Plataforma de Produto'}</span>
             <span>/</span>
-            <span className="font-medium text-fg-primary">Giro Dev Team</span>
+            <span className="font-medium text-fg-primary">{dataContext.workspaceConfig?.teamName || 'Equipa Principal'}</span>
           </div>
 
           <h1 className="text-2xl lg:text-3xl font-bold text-fg-primary tracking-tight">
@@ -142,7 +151,7 @@ export function NotificationsPage() {
 
           <Button
             variant="tertiary"
-            className="h-10 px-4 text-xs font-medium border border-border-subtle bg-white"
+            className="h-10 px-4 text-xs font-medium border border-border-subtle bg-bg-surface"
             onClick={() => navigate('/definicoes')}
           >
             Definições
@@ -163,7 +172,7 @@ export function NotificationsPage() {
         {/* Card Não Lidas */}
         <div
           onClick={() => setActiveTab('nao-lidas')}
-          className={`p-4 rounded-xl border bg-white cursor-pointer transition-all hover:shadow-sm ${
+          className={`p-4 rounded-xl border bg-bg-surface cursor-pointer transition-all hover:shadow-sm ${
             activeTab === 'nao-lidas'
               ? 'border-brand-action ring-1 ring-brand-action bg-[#FFE3DC]/20'
               : 'border-border-subtle'
@@ -188,7 +197,7 @@ export function NotificationsPage() {
         {/* Card Menções */}
         <div
           onClick={() => setActiveTab('mencoes')}
-          className={`p-4 rounded-xl border bg-white cursor-pointer transition-all hover:shadow-sm ${
+          className={`p-4 rounded-xl border bg-bg-surface cursor-pointer transition-all hover:shadow-sm ${
             activeTab === 'mencoes'
               ? 'border-[#8B5CF6] ring-1 ring-[#8B5CF6] bg-[#EDE9FE]/20'
               : 'border-border-subtle'
@@ -213,7 +222,7 @@ export function NotificationsPage() {
         {/* Card Todas */}
         <div
           onClick={() => setActiveTab('todas')}
-          className={`p-4 rounded-xl border bg-white cursor-pointer transition-all hover:shadow-sm ${
+          className={`p-4 rounded-xl border bg-bg-surface cursor-pointer transition-all hover:shadow-sm ${
             activeTab === 'todas'
               ? 'border-border-control ring-1 ring-border-control bg-bg-page'
               : 'border-border-subtle'
@@ -239,7 +248,7 @@ export function NotificationsPage() {
       {/* 3. Conteúdo Principal: Lista (8 cols) + Painel Contextual (4 cols) (Figma 336:1449) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Lado Esquerdo: Lista de Notificações com Separadores (Figma 336:1450) */}
-        <div className="lg:col-span-8 bg-white rounded-xl border border-border-subtle p-5 shadow-xs space-y-4">
+        <div className="lg:col-span-8 bg-bg-surface rounded-xl border border-border-subtle p-5 shadow-xs space-y-4">
           {/* Separadores e Filtros (Figma 336:1451) */}
           <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle pb-4">
             <button
@@ -252,7 +261,7 @@ export function NotificationsPage() {
               }`}
             >
               <span>Todas</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/70">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-bg-surface/80">
                 {counts.all}
               </span>
             </button>
@@ -267,7 +276,7 @@ export function NotificationsPage() {
               }`}
             >
               <span>Não lidas</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/70">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-bg-surface/80">
                 {counts.unread}
               </span>
             </button>
@@ -282,7 +291,7 @@ export function NotificationsPage() {
               }`}
             >
               <span>Menções</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/70">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-bg-surface/80">
                 {counts.mentions}
               </span>
             </button>
@@ -297,7 +306,7 @@ export function NotificationsPage() {
               }`}
             >
               <span>Decisões</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/70">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-bg-surface/80">
                 {counts.decisions}
               </span>
             </button>
@@ -312,7 +321,7 @@ export function NotificationsPage() {
               }`}
             >
               <span>Bloqueios</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/70">
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-bg-surface/80">
                 {counts.blockers}
               </span>
             </button>
@@ -401,7 +410,7 @@ export function NotificationsPage() {
         <div className="lg:col-span-4 space-y-5 sticky top-24">
           {/* Card 1: Detalhe da Notificação Selecionada (Figma 336:1536) */}
           {selectedNotif && (
-            <div className="p-5 rounded-xl bg-white border border-border-subtle shadow-xs space-y-4">
+            <div className="p-5 rounded-xl bg-bg-surface border border-border-subtle shadow-xs space-y-4">
               <div>
                 <p className="text-[11px] font-bold tracking-wider text-brand-action uppercase">
                   NOTIFICAÇÃO SELECIONADA
@@ -421,7 +430,7 @@ export function NotificationsPage() {
                   {selectedNotif.refCode}
                 </span>
                 <span className="text-[11px] text-brand-hover">
-                  Sprint 12
+                  {dataContext.activeSprintLabel || 'Sprint Ativo'}
                 </span>
               </div>
 
@@ -446,7 +455,7 @@ export function NotificationsPage() {
           )}
 
           {/* Card 2: Preferências de Notificações (Figma 336:1545) */}
-          <div className="p-5 rounded-xl bg-white border border-border-subtle shadow-xs space-y-4">
+          <div className="p-5 rounded-xl bg-bg-surface border border-border-subtle shadow-xs space-y-4">
             <div>
               <h3 className="text-base font-bold text-fg-primary">
                 Preferências de Alertas

@@ -197,8 +197,8 @@ export function Select({
           'transition-colors duration-150 ease-in-out',
           // Estado normal
           !hasError &&
-            'bg-white border border-border-subtle hover:border-border-control',
-          // Estado de erro (pêssego #FFE3DC com borda vermelha #B42318)
+            'bg-bg-surface border border-border-subtle hover:border-border-control',
+          // Estado de erro
           hasError &&
             'bg-feedback-errorBg border border-feedback-errorBorder text-fg-primary',
           // Foco e anel
@@ -208,7 +208,7 @@ export function Select({
               : 'ring-2 ring-border-focusRing border-transparent outline-none'
             : 'focus:outline-none focus:ring-2 focus:ring-border-focusRing',
           // Desativado
-          'disabled:bg-[#0000000A] disabled:border-border-disabled disabled:text-fg-disabled disabled:cursor-not-allowed',
+          'disabled:bg-bg-disabled disabled:border-border-disabled disabled:text-fg-disabled disabled:cursor-not-allowed',
           className
         )}
       >
@@ -219,7 +219,7 @@ export function Select({
               currentValue.map((val) => (
                 <span
                   key={val}
-                  className="inline-flex items-center gap-1 bg-[#F1F2F4] border border-border-subtle text-fg-primary rounded-md px-2 py-0.5 text-xs font-medium"
+                  className="inline-flex items-center gap-1 bg-bg-page border border-border-subtle text-fg-primary rounded-md px-2 py-0.5 text-xs font-medium"
                 >
                   <span className="truncate max-w-[140px]">{getOptionLabel(val)}</span>
                   <span
@@ -232,7 +232,7 @@ export function Select({
                         handleRemoveTag(e, val)
                       }
                     }}
-                    className="p-0.5 rounded-xs hover:bg-[#CDD1D8] text-fg-secondary hover:text-fg-primary transition-colors cursor-pointer"
+                    className="p-0.5 rounded-xs hover:bg-bg-disabled-emphasis text-fg-secondary hover:text-fg-primary transition-colors cursor-pointer"
                   >
                     <X className="w-3 h-3" />
                   </span>
@@ -264,11 +264,11 @@ export function Select({
         <div
           role="listbox"
           aria-multiselectable={multiple}
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border-subtle bg-white shadow-lg py-1 focus:outline-none"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border-subtle bg-bg-surface shadow-lg py-1 focus:outline-none"
         >
           {/* Barra de Pesquisa */}
           {searchable && (
-            <div className="sticky top-0 bg-white p-2 border-b border-border-subtle flex items-center gap-2 z-10">
+            <div className="sticky top-0 bg-bg-surface p-2 border-b border-border-subtle flex items-center gap-2 z-10">
               <Search className="w-4 h-4 text-fg-secondary shrink-0" aria-hidden="true" />
               <input
                 ref={searchInputRef}
@@ -309,7 +309,7 @@ export function Select({
                     'px-3.5 py-2 text-sm flex items-center justify-between cursor-pointer transition-colors select-none',
                     selected
                       ? 'bg-brand-selection text-brand-action font-medium'
-                      : 'text-fg-primary hover:bg-[#F1F2F4]',
+                      : 'text-fg-primary hover:bg-bg-page',
                     opt.disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent'
                   )}
                 >

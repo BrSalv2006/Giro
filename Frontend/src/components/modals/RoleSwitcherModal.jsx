@@ -10,27 +10,27 @@ const ROLE_DESCRIPTIONS = {
   PRODUCT_OWNER: {
     title: 'Product Owner (Sofia Costa)',
     desc: 'Gestão completa do Backlog, priorização de pedidos, estimativa e planeamento de Sprints.',
-    badge: 'Acesso Padrão',
+    badge: 'P01 · Produto',
   },
   SCRUM_MASTER: {
     title: 'Scrum Master (Inês Martins)',
     desc: 'Facilitação de cerimónias ágeis, remoção de impedimentos e métricas de sprint.',
-    badge: 'Scrum Lead',
+    badge: 'P02 · Scrum',
   },
   DEVELOPER: {
-    title: 'Desenvolvedor (Rafael Silva)',
-    desc: 'Execução de tarefas na Sprint, movimentação no Kanban, reporte de impedimentos.',
-    badge: 'Dev Lead',
-  },
-  ADMIN: {
-    title: 'Administrador (Diogo Ferreira)',
-    desc: 'Controlo total de permissões, configurações globais e auditoria do sistema.',
-    badge: 'Acesso Total',
+    title: 'Programador (Rafael Silva)',
+    desc: 'Execução de tarefas no Sprint, movimentação no Kanban, registo de esforço e bloqueios.',
+    badge: 'P03 · Equipa',
   },
   CLIENT: {
-    title: 'Cliente / Stakeholder (Miguel Alves)',
-    desc: 'Submissão de pedidos e votação (RNF-SEG-03). Acesso restrito a configurações e matriz interna.',
-    badge: 'Externo',
+    title: 'Cliente Final / Stakeholder (Miguel Alves)',
+    desc: 'Submissão de pedidos e votação (RNF-SEG-03). Acesso restrito a configurações e métricas internas.',
+    badge: 'P04 · Externo',
+  },
+  ADMIN: {
+    title: 'Administrador do Sistema (Diogo Ferreira)',
+    desc: 'Controlo total de permissões, contas RBAC, configurações globais e auditoria do sistema.',
+    badge: 'P05 · Acesso Total',
   },
 }
 

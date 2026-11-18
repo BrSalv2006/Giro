@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Avatar,
@@ -7,7 +7,16 @@ import {
   Toggle,
   User,
 } from '../components/common'
-import { useAuth, ROLES, ROLE_PERMISSIONS } from '../context/AuthContext.jsx'
+import {
+  useAuth,
+  ROLES,
+  ROLE_CODES,
+  ROLE_LABELS,
+  ROLE_PERMISSIONS,
+  getRoleCode,
+  getRoleLabel,
+} from '../context/AuthContext.jsx'
+import { useData } from '../context/DataContext.jsx'
 
 function useSafeAuth() {
   try {
@@ -21,55 +30,20 @@ function useSafeAuth() {
   }
 }
 
-const INITIAL_MEMBERS = [
-  {
-    id: 'usr-po-01',
-    name: 'Sofia Costa',
-    email: 'sofia.costa@giro.com',
-    initials: 'SC',
-    role: 'Product Owner',
-    roleBadgeClass: 'bg-[#E4E5EA] text-[#292D35]',
-    scope: 'Prioridades de produto e backlog',
-    presence: 'online',
-    presenceLabel: 'Online',
-    presenceDot: 'bg-[#16A34A]',
-  },
-  {
-    id: 'usr-sm-01',
-    name: 'Inês Martins',
-    email: 'ines.martins@giro.com',
-    initials: 'IM',
-    role: 'Scrum Master',
-    roleBadgeClass: 'bg-[#E4E5EA] text-[#292D35]',
-    scope: 'Cerimónias e acompanhamento do sprint',
-    presence: 'online',
-    presenceLabel: 'Online',
-    presenceDot: 'bg-[#16A34A]',
-  },
-  {
-    id: 'usr-dev-01',
-    name: 'Rafael Silva',
-    email: 'rafael.silva@giro.com',
-    initials: 'RS',
-    role: 'Developer',
-    roleBadgeClass: 'bg-[#E4E5EA] text-[#292D35]',
-    scope: 'Desenvolvimento e implementação',
-    presence: 'online',
-    presenceLabel: 'Online',
-    presenceDot: 'bg-[#16A34A]',
-  },
-  {
-    id: 'usr-adm-01',
-    name: 'Miguel Alves',
-    email: 'miguel.alves@giro.com',
-    initials: 'MA',
-    role: 'Admin',
-    roleBadgeClass: 'bg-[#FFE3DC] text-brand-action font-semibold',
-    scope: 'Membros, permissões e configuração da equipa',
-    presence: 'busy',
-    presenceLabel: 'Ausente',
-    presenceDot: 'bg-[#DC2626]',
-  },
+const ROLE_BADGE_CLASSES = {
+  PRODUCT_OWNER: 'bg-[#FFE3DC] text-[#B93826] border border-[#F8C1B7]',
+  SCRUM_MASTER: 'bg-[#EDE9FE] text-[#5B21B6] border border-[#DDD6FE]',
+  DEVELOPER: 'bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]',
+  CLIENT: 'bg-[#F1F2F4] text-[#292D35] border border-[#CDD1D8]',
+  ADMIN: 'bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]',
+}
+
+const ROLE_OPTIONS = [
+  { code: ROLE_CODES.PRODUCT_OWNER, label: 'P01 · Product Owner' },
+  { code: ROLE_CODES.SCRUM_MASTER, label: 'P02 · Scrum Master' },
+  { code: ROLE_CODES.DEVELOPER, label: 'P03 · Programador' },
+  { code: ROLE_CODES.CLIENT, label: 'P04 · Cliente Final' },
+  { code: ROLE_CODES.ADMIN, label: 'P05 · Administrador do Sistema' },
 ]
 
 /**
@@ -79,10 +53,14 @@ const INITIAL_MEMBERS = [
 export function TeamSettingsPage() {
   const navigate = useNavigate()
   const { currentUser, role, roleLabel } = useSafeAuth()
+  const dataContext = useData()
 
-  const [activeTab, setActiveTab] = useState('geral') // 'geral' | 'membros' | 'permissoes' | 'sprints' | 'notificacoes' | 'integracoes'
-  const [members] = useState(INITIAL_MEMBERS)
+  const [activeTab, setActiveTab] = useState('geral') // 'geral' | 'membros' | 'permissoes' | 'auditoria' | 'sprints' | 'notificacoes' | 'integracoes'
+  const members = dataContext.users || []
+  const logs = useMemo(() => dataContext.logs || [], [dataContext.logs])
   const [feedbackMsg, setFeedbackMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  const [logSearch, setLogSearch] = useState('')
 
   // Estados dos campos da equipa
   const [teamName, setTeamName] = useState('Giro Dev Team')
@@ -98,24 +76,67 @@ export function TeamSettingsPage() {
   // Modal de Pedido de Convite / Contacto
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('Developer')
+  const [inviteRole, setInviteRole] = useState('Programador')
 
   const isAdmin = role === ROLES?.ADMIN || role === 'ADMIN'
+  const isClient = role === ROLES?.CLIENT || role === 'CLIENT'
+
+  const filteredLogs = useMemo(() => {
+    const q = logSearch.trim().toLowerCase()
+    if (!q) return logs
+    return logs.filter(
+      (entry) =>
+        (entry.action || '').toLowerCase().includes(q) ||
+        (entry.resource || '').toLowerCase().includes(q) ||
+        (entry.userName || '').toLowerCase().includes(q)
+    )
+  }, [logs, logSearch])
+
+  const showSuccess = (msg) => {
+    setErrorMsg('')
+    setFeedbackMsg(msg)
+    setTimeout(() => setFeedbackMsg(''), 3500)
+  }
+
+  const showError = (msg) => {
+    setFeedbackMsg('')
+    setErrorMsg(msg)
+    setTimeout(() => setErrorMsg(''), 4000)
+  }
 
   const handleSaveGeneral = (e) => {
     e?.preventDefault()
-    setFeedbackMsg('✓ Informações da equipa atualizadas com sucesso!')
-    setTimeout(() => setFeedbackMsg(''), 3500)
+    showSuccess('✓ Informações da equipa atualizadas com sucesso!')
   }
 
   const handleSendInviteRequest = (e) => {
     e?.preventDefault()
     if (!inviteEmail) return
 
-    setFeedbackMsg(`✓ Pedido de convite para ${inviteEmail} enviado ao Administrador (Miguel Alves).`)
+    showSuccess(`✓ Pedido de convite para ${inviteEmail} (${inviteRole}) enviado ao Administrador do Sistema (Diogo Ferreira).`)
     setShowInviteModal(false)
     setInviteEmail('')
-    setTimeout(() => setFeedbackMsg(''), 4000)
+  }
+
+  const handleRoleChange = async (member, newRoleCode) => {
+    if (!dataContext.updateUserRoleOrStatus) return
+    try {
+      await dataContext.updateUserRoleOrStatus(member.id, { role: newRoleCode })
+      showSuccess(`✓ Papel de ${member.name} atualizado para ${getRoleLabel(newRoleCode)} (${newRoleCode}).`)
+    } catch (err) {
+      showError(err.message || 'Não foi possível atualizar o papel do utilizador.')
+    }
+  }
+
+  const handleToggleActive = async (member) => {
+    if (!dataContext.updateUserRoleOrStatus) return
+    const nextActive = member.active === false
+    try {
+      await dataContext.updateUserRoleOrStatus(member.id, { active: nextActive })
+      showSuccess(`✓ Conta de ${member.name} ${nextActive ? 'reativada' : 'desativada'} com sucesso.`)
+    } catch (err) {
+      showError(err.message || 'Não foi possível alterar o estado da conta.')
+    }
   }
 
   return (
@@ -132,7 +153,7 @@ export function TeamSettingsPage() {
             Definições da Equipa
           </h1>
           <p className="text-sm text-fg-secondary mt-1">
-            Gestão de membros, permissões por papel, preferências do fluxo de trabalho e integrações.
+            Gestão de membros, permissões por papel (P01–P05), auditoria, fluxo de trabalho e integrações.
           </p>
         </div>
 
@@ -145,13 +166,22 @@ export function TeamSettingsPage() {
         </button>
       </div>
 
-      {/* Mensagem de Feedback */}
+      {/* Mensagens de Feedback */}
       {feedbackMsg && (
         <div
           role="status"
           className="p-3.5 rounded-xl bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0] text-sm font-medium animate-in fade-in duration-200"
         >
           {feedbackMsg}
+        </div>
+      )}
+
+      {errorMsg && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-xl bg-feedback-errorBg text-feedback-errorFg border border-feedback-errorBorder text-sm font-medium"
+        >
+          {errorMsg}
         </div>
       )}
 
@@ -171,8 +201,8 @@ export function TeamSettingsPage() {
             </h2>
             <p className="text-xs sm:text-sm text-fg-secondary max-w-2xl leading-relaxed">
               {isAdmin
-                ? 'Como Administrador da organização, dispõe de privilégios totais para convidar e remover membros, editar funções e gerir integrações.'
-                : 'Pode gerir o backlog e as prioridades. Os dados da equipa, os membros e as permissões são geridos por Miguel Alves (Admin).'}
+                ? 'Como Administrador do Sistema (P05), dispõe de privilégios totais para gerir utilizadores, atribuir papéis RBAC e consultar logs de auditoria.'
+                : 'Pode consultar as definições da equipa. A gestão de contas e papéis RBAC é reservada a Diogo Ferreira (Administrador do Sistema · P05).'}
             </p>
           </div>
         </div>
@@ -185,7 +215,7 @@ export function TeamSettingsPage() {
                 : 'bg-bg-page text-fg-secondary border border-border-subtle'
             }`}
           >
-            {isAdmin ? 'Acesso Total (Admin)' : 'Só de leitura'}
+            {isAdmin ? 'Acesso Total (P05)' : 'Só de leitura'}
           </span>
         </div>
       </div>
@@ -206,6 +236,7 @@ export function TeamSettingsPage() {
               { id: 'geral', label: 'Geral' },
               { id: 'membros', label: 'Membros e funções' },
               { id: 'permissoes', label: 'Permissões' },
+              { id: 'auditoria', label: 'Logs de auditoria' },
               { id: 'sprints', label: 'Sprints e fluxo de trabalho' },
               { id: 'notificacoes', label: 'Notificações da equipa' },
               { id: 'integracoes', label: 'Integrações' },
@@ -239,24 +270,24 @@ export function TeamSettingsPage() {
 
             <div className="flex items-center gap-3">
               <Avatar
-                name="Miguel Alves"
+                name="Diogo Ferreira"
                 size={36}
                 shape="circle"
                 className="bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]"
               />
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-fg-primary truncate">
-                  Miguel Alves
+                  Diogo Ferreira
                 </div>
                 <div className="text-xs text-fg-secondary flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626]" />
-                  <span>Admin · Ausente</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
+                  <span>P05 · Administrador do Sistema</span>
                 </div>
               </div>
             </div>
 
             <p className="text-xs text-fg-secondary leading-relaxed">
-              Envie um pedido ao administrador para atualizar a equipa ou alterar permissões corporativas.
+              Envie um pedido ao Administrador do Sistema para atualizar a equipa ou alterar permissões RBAC.
             </p>
 
             <button
@@ -281,7 +312,7 @@ export function TeamSettingsPage() {
                   </h2>
                   <span className="text-xs text-fg-secondary flex items-center gap-1.5 bg-bg-page px-2.5 py-1 rounded-md">
                     <User size={14} />
-                    <span>{isAdmin ? 'Pode editar como Admin' : 'Apenas o Admin pode editar'}</span>
+                    <span>{isAdmin ? 'Pode editar como Administrador (P05)' : 'Apenas o Administrador pode editar'}</span>
                   </span>
                 </div>
 
@@ -298,7 +329,7 @@ export function TeamSettingsPage() {
                       Giro Dev Team
                     </h3>
                     <p className="text-xs text-fg-secondary">
-                      {members.length} membros · Plataforma de Produto
+                      {members.length} utilizadores registados · Plataforma de Produto
                     </p>
                   </div>
                 </div>
@@ -343,7 +374,7 @@ export function TeamSettingsPage() {
                     <p className="text-xs text-fg-secondary">
                       {isAdmin
                         ? 'Todas as alterações são sincronizadas imediatamente com a equipa.'
-                        : 'As alterações a estes dados devem ser solicitadas a Miguel Alves.'}
+                        : 'As alterações a estes dados devem ser solicitadas a Diogo Ferreira (P05).'}
                     </p>
 
                     {isAdmin && (
@@ -357,7 +388,6 @@ export function TeamSettingsPage() {
 
               {/* Configuração de Trabalho (Figma 342:1780) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Sprints e fluxo de trabalho (Figma 342:1781) */}
                 <div className="p-5 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-4">
                   <h3 className="text-base font-bold text-fg-primary">
                     Sprints e fluxo de trabalho
@@ -387,18 +417,17 @@ export function TeamSettingsPage() {
                   </button>
                 </div>
 
-                {/* Permissões e segurança (Figma 342:1790) */}
                 <div className="p-5 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-4">
                   <h3 className="text-base font-bold text-fg-primary">
                     Permissões e segurança
                   </h3>
 
                   <p className="text-xs text-fg-secondary leading-relaxed">
-                    Acesso reservado aos {members.length} membros da equipa com controlo de acessos baseado em papéis (RBAC).
+                    Acesso segmentado pelos 5 papéis oficiais (P01–P05) com controlo estrito RBAC.
                   </p>
 
                   <p className="text-xs text-fg-secondary leading-relaxed bg-bg-page p-2.5 rounded-lg border border-border-subtle">
-                    Sofia define as prioridades do produto. Miguel gere o acesso, os convites e as definições administrativas.
+                    Sofia Costa (P01) define prioridades do produto. Diogo Ferreira (P05) gere contas, papéis e logs de auditoria.
                   </p>
 
                   <div className="h-px bg-border-subtle" />
@@ -428,7 +457,7 @@ export function TeamSettingsPage() {
                     Membros e funções
                   </h2>
                   <p className="text-xs text-fg-secondary mt-0.5">
-                    {members.length} membros · Funções atribuídas pelo administrador
+                    {members.length} utilizadores · Papéis atribuídos pelo Administrador do Sistema (CA9.1 / CA9.2)
                   </p>
                 </div>
 
@@ -441,70 +470,105 @@ export function TeamSettingsPage() {
                 </Button>
               </div>
 
-              {/* Tabela de Membros (Figma 342:1732) */}
+              {/* Tabela de Membros */}
               <div className="overflow-x-auto rounded-xl border border-border-subtle">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-bg-page border-b border-border-subtle text-[11px] font-bold text-fg-secondary uppercase tracking-wider">
                       <th className="py-3 px-4">Membro</th>
-                      <th className="py-3 px-4">Função</th>
+                      <th className="py-3 px-4">Função (P01–P05)</th>
                       <th className="py-3 px-4">Âmbito de atuação</th>
-                      <th className="py-3 px-4">Presença</th>
+                      <th className="py-3 px-4">Estado</th>
+                      {isAdmin && <th className="py-3 px-4 text-right">Gestão RBAC</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle text-xs">
-                    {members.map((member) => (
-                      <tr key={member.id} className="hover:bg-bg-page/50 transition-colors">
-                        {/* Identificação */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            <Avatar
-                              name={member.name}
-                              size={36}
-                              shape="circle"
-                              className="bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]"
-                            />
-                            <div>
-                              <div className="font-semibold text-fg-primary text-sm">
-                                {member.name}
-                              </div>
-                              <div className="text-xs text-fg-secondary">
-                                {member.email}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Função */}
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`inline-block px-2.5 py-1 rounded text-xs font-medium ${member.roleBadgeClass}`}
-                          >
-                            {member.role}
-                          </span>
-                        </td>
-
-                        {/* Âmbito */}
-                        <td className="py-3.5 px-4 text-fg-secondary max-w-xs">
-                          {member.scope}
-                        </td>
-
-                        {/* Presença */}
-                        <td className="py-3.5 px-4">
-                          <span className="inline-flex items-center gap-1.5 text-xs text-fg-secondary font-medium">
-                            <span className={`w-2 h-2 rounded-full ${member.presenceDot}`} />
-                            {member.presenceLabel}
-                          </span>
+                    {members.length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdmin ? 5 : 4} className="py-8 px-4 text-center text-fg-secondary">
+                          {isClient
+                            ? 'A listagem de membros internos está restrita para o perfil Cliente Final (P04).'
+                            : 'Nenhum utilizador carregado no momento.'}
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      members.map((member) => {
+                        const roleCode = member.roleCode || getRoleCode(member.role)
+                        const badgeClass = ROLE_BADGE_CLASSES[member.role] || ROLE_BADGE_CLASSES.CLIENT
+                        const isActiveAccount = member.active !== false
+                        return (
+                          <tr key={member.id} className="hover:bg-bg-page/50 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar
+                                  name={member.name}
+                                  size={36}
+                                  shape="circle"
+                                  className="bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]"
+                                />
+                                <div>
+                                  <div className="font-semibold text-fg-primary text-sm">
+                                    {member.name}
+                                  </div>
+                                  <div className="text-xs text-fg-secondary">
+                                    {member.email}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <span className={`inline-block px-2.5 py-1 rounded text-xs font-medium ${badgeClass}`}>
+                                {roleCode} · {getRoleLabel(member.role)}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-4 text-fg-secondary max-w-xs">
+                              {member.scope || 'Membro da plataforma GIRO'}
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <span className="inline-flex items-center gap-1.5 text-xs text-fg-secondary font-medium">
+                                <span className={`w-2 h-2 rounded-full ${isActiveAccount ? 'bg-[#16A34A]' : 'bg-[#DC2626]'}`} />
+                                {isActiveAccount ? 'Ativo' : 'Desativado'}
+                              </span>
+                            </td>
+
+                            {isAdmin && (
+                              <td className="py-3.5 px-4 text-right">
+                                <div className="inline-flex items-center gap-2">
+                                  <select
+                                    aria-label={`Alterar papel de ${member.name}`}
+                                    value={roleCode}
+                                    onChange={(e) => handleRoleChange(member, e.target.value)}
+                                    className="h-8 px-2 rounded-lg border border-border-subtle bg-white text-xs text-fg-primary cursor-pointer"
+                                  >
+                                    {ROLE_OPTIONS.map((opt) => (
+                                      <option key={opt.code} value={opt.code}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <Button
+                                    variant="secondary"
+                                    className="h-8 px-2.5 text-[11px]"
+                                    onClick={() => handleToggleActive(member)}
+                                  >
+                                    {isActiveAccount ? 'Desativar' : 'Reativar'}
+                                  </Button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        )
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
 
-              {/* Nota de Permissões (Figma 342:1778) */}
               <div className="p-3.5 rounded-xl bg-bg-page border border-border-subtle text-xs text-fg-secondary leading-relaxed">
-                Só Miguel Alves (Admin) pode convidar ou remover membros e alterar funções. Pedir um convite não o envia automaticamente.
+                Apenas Diogo Ferreira (Administrador do Sistema · P05) pode alterar papéis RBAC ou desativar contas (CA9.1 / CA9.2).
               </div>
             </section>
           )}
@@ -517,7 +581,7 @@ export function TeamSettingsPage() {
                   Matriz de Controlo de Acessos (RBAC)
                 </h2>
                 <p className="text-xs text-fg-secondary mt-1">
-                  Direitos de visualização, edição e gestão para os 5 papéis definidos na plataforma Giro.
+                  Direitos de visualização, edição e gestão para os 5 papéis definidos na plataforma Giro (P01–P05).
                 </p>
               </div>
 
@@ -526,11 +590,11 @@ export function TeamSettingsPage() {
                   <thead>
                     <tr className="bg-bg-page border-b border-border-subtle text-[11px] font-bold text-fg-secondary uppercase tracking-wider">
                       <th className="py-3 px-4">Capacidade / Privilégio</th>
-                      <th className="py-3 px-3 text-center">Admin</th>
-                      <th className="py-3 px-3 text-center">Product Owner</th>
-                      <th className="py-3 px-3 text-center">Scrum Master</th>
-                      <th className="py-3 px-3 text-center">Developer</th>
-                      <th className="py-3 px-3 text-center">Cliente</th>
+                      <th className="py-3 px-3 text-center">Administrador (P05)</th>
+                      <th className="py-3 px-3 text-center">Product Owner (P01)</th>
+                      <th className="py-3 px-3 text-center">Scrum Master (P02)</th>
+                      <th className="py-3 px-3 text-center">Programador (P03)</th>
+                      <th className="py-3 px-3 text-center">Cliente Final (P04)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
@@ -540,7 +604,7 @@ export function TeamSettingsPage() {
                       { key: 'canManageBacklog', label: 'Priorizar e aprovar Backlog' },
                       { key: 'canManageSprint', label: 'Mover tarefas no Sprint Kanban' },
                       { key: 'canEditSettings', label: 'Alterar definições da equipa' },
-                      { key: 'canManageUsers', label: 'Convidar membros e alterar funções' },
+                      { key: 'canManageUsers', label: 'Gerir contas e papéis RBAC' },
                       { key: 'canViewTraceability', label: 'Consultar Matriz de Rastreabilidade' },
                     ].map((priv) => (
                       <tr key={priv.key} className="hover:bg-bg-page/40 transition-colors">
@@ -590,7 +654,85 @@ export function TeamSettingsPage() {
             </section>
           )}
 
-          {/* TAB 4: SPRINTS E FLUXO DE TRABALHO */}
+          {/* TAB 4: LOGS DE AUDITORIA (CA9.4) */}
+          {activeTab === 'auditoria' && (
+            <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle pb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-fg-primary">
+                    Registos de Auditoria (CA9.4)
+                  </h2>
+                  <p className="text-xs text-fg-secondary mt-0.5">
+                    Histórico cronológico de criações, alterações de estado, priorização IA e permissões RBAC.
+                  </p>
+                </div>
+
+                {!isClient && (
+                  <div className="w-full sm:w-64">
+                    <TextField
+                      placeholder="Filtrar por ação, recurso ou utilizador..."
+                      value={logSearch}
+                      onChange={(e) => setLogSearch(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {isClient ? (
+                <div className="p-6 rounded-xl bg-[#FEE2E2]/40 border border-[#FECACA] text-xs text-[#DC2626] font-medium">
+                  Acesso restrito (HTTP 403 / CA9.3): o perfil <strong>Cliente Final (P04)</strong> não tem autorização para consultar logs internos de auditoria.
+                </div>
+              ) : filteredLogs.length === 0 ? (
+                <div className="p-8 rounded-xl bg-bg-page border border-border-subtle text-center text-xs text-fg-secondary">
+                  Nenhum registo de auditoria encontrado.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border-subtle">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-bg-page border-b border-border-subtle text-[11px] font-bold text-fg-secondary uppercase tracking-wider">
+                        <th className="py-3 px-4">Data / Hora</th>
+                        <th className="py-3 px-4">Utilizador</th>
+                        <th className="py-3 px-4">Ação</th>
+                        <th className="py-3 px-4">Recurso</th>
+                        <th className="py-3 px-4">Detalhes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-subtle">
+                      {filteredLogs.map((entry) => (
+                        <tr key={entry.id} className="hover:bg-bg-page/40 transition-colors">
+                          <td className="py-3 px-4 font-mono text-[11px] text-fg-secondary whitespace-nowrap">
+                            {new Date(entry.timestamp).toLocaleString('pt-PT')}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-fg-primary">{entry.userName}</div>
+                            {entry.userRole && (
+                              <div className="text-[11px] text-fg-secondary">
+                                {entry.userRole} · {getRoleLabel(entry.userRole)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 rounded bg-[#FFE3DC] text-brand-action font-mono font-semibold text-[11px]">
+                              {entry.action}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-mono text-[11px] text-fg-primary">
+                            {entry.resource}
+                          </td>
+                          <td className="py-3 px-4 text-[11px] text-fg-secondary max-w-xs truncate">
+                            {entry.details ? JSON.stringify(entry.details) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* TAB 5: SPRINTS E FLUXO DE TRABALHO */}
           {activeTab === 'sprints' && (
             <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
               <div>
@@ -630,13 +772,13 @@ export function TeamSettingsPage() {
                   <div className="p-3 bg-white rounded-lg border border-border-subtle font-medium text-fg-primary">
                     1. Por fazer
                   </div>
-                  <div className="p-3 bg-white rounded-lg border border-border-subtle font-medium text-[#5B21B6] bg-[#EDE9FE]/20">
+                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#5B21B6] bg-[#EDE9FE]/20">
                     2. Em desenvolvimento
                   </div>
-                  <div className="p-3 bg-white rounded-lg border border-border-subtle font-medium text-[#7A4D00] bg-[#FEF3C7]/20">
+                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#7A4D00] bg-[#FEF3C7]/20">
                     3. Em revisão
                   </div>
-                  <div className="p-3 bg-white rounded-lg border border-border-subtle font-medium text-[#166534] bg-[#DCFCE7]/20">
+                  <div className="p-3 rounded-lg border border-border-subtle font-medium text-[#166534] bg-[#DCFCE7]/20">
                     4. Concluído
                   </div>
                 </div>
@@ -652,7 +794,7 @@ export function TeamSettingsPage() {
             </section>
           )}
 
-          {/* TAB 5: NOTIFICAÇÕES DA EQUIPA */}
+          {/* TAB 6: NOTIFICAÇÕES DA EQUIPA */}
           {activeTab === 'notificacoes' && (
             <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
               <div>
@@ -716,7 +858,7 @@ export function TeamSettingsPage() {
             </section>
           )}
 
-          {/* TAB 6: INTEGRAÇÕES */}
+          {/* TAB 7: INTEGRAÇÕES */}
           {activeTab === 'integracoes' && (
             <section className="p-6 rounded-2xl bg-white border border-border-subtle shadow-xs space-y-5">
               <div>
@@ -731,7 +873,7 @@ export function TeamSettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-white border border-border-subtle flex items-start justify-between">
                   <div className="space-y-1">
-                    <div className="font-bold text-fg-primary text-sm">GitHub & GitLab</div>
+                    <div className="font-bold text-fg-primary text-sm">GitHub &amp; GitLab</div>
                     <p className="text-xs text-fg-secondary">
                       Sincronização de commits com histórias (US-XX).
                     </p>
@@ -767,7 +909,7 @@ export function TeamSettingsPage() {
 
                 <div className="p-4 rounded-xl bg-white border border-border-subtle flex items-start justify-between">
                   <div className="space-y-1">
-                    <div className="font-bold text-fg-primary text-sm">Slack & MS Teams</div>
+                    <div className="font-bold text-fg-primary text-sm">Slack &amp; MS Teams</div>
                     <p className="text-xs text-fg-secondary">
                       Webhooks de alertas para canais #sprint e #pedidos.
                     </p>
@@ -804,7 +946,7 @@ export function TeamSettingsPage() {
             </div>
 
             <p className="text-xs text-fg-secondary leading-relaxed">
-              Indique o endereço de e-mail do colaborador e a função pretendida. O pedido será encaminhado para validação por <strong>Miguel Alves (Admin)</strong>.
+              Indique o endereço de e-mail do colaborador e a função pretendida. O pedido será encaminhado para validação por <strong>Diogo Ferreira (Administrador do Sistema · P05)</strong>.
             </p>
 
             <form onSubmit={handleSendInviteRequest} className="space-y-3.5">
@@ -826,10 +968,11 @@ export function TeamSettingsPage() {
                   onChange={(e) => setInviteRole(e.target.value)}
                   className="w-full h-11 px-3 rounded-lg border border-border-subtle bg-white text-sm text-fg-primary focus:outline-none focus:ring-2 focus:ring-brand-action/20"
                 >
-                  <option value="Developer">Developer (Desenvolvimento)</option>
-                  <option value="Scrum Master">Scrum Master (Facilitação)</option>
-                  <option value="Product Owner">Product Owner (Produto)</option>
-                  <option value="Cliente">Cliente (Votação e Feedback)</option>
+                  <option value={ROLE_LABELS.DEVELOPER}>Programador (Desenvolvimento · P03)</option>
+                  <option value={ROLE_LABELS.SCRUM_MASTER}>Scrum Master (Facilitação · P02)</option>
+                  <option value={ROLE_LABELS.PRODUCT_OWNER}>Product Owner (Produto · P01)</option>
+                  <option value={ROLE_LABELS.CLIENT}>Cliente Final (Votação e Feedback · P04)</option>
+                  <option value={ROLE_LABELS.ADMIN}>Administrador do Sistema (P05)</option>
                 </select>
               </div>
 

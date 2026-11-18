@@ -27,109 +27,6 @@ function useSafeData() {
   }
 }
 
-const DEFAULT_TRACEABILITY_ITEMS = [
-  {
-    id: 'REQ-01',
-    code: 'RNF-SEG-01',
-    title: 'Autenticação e Expiração Automática de Sessão por Inatividade (60m)',
-    description: 'Protocolo HTTPS obrigatório e expiração automática de sessão após 60 minutos de ausência.',
-    category: 'Segurança',
-    status: 'tracked', // tracked | partially_tracked | untracked
-    originPedido: 'N/A (Requisito Arquitetural)',
-    stories: [
-      { id: 'US-60', title: 'Temporizador de inatividade de 60 minutos', status: 'done' },
-    ],
-    tests: [
-      { id: 'TC-01', name: 'Timeout de inatividade de 60m', status: 'pass' },
-      { id: 'TC-02', name: 'Reset do timer com interação', status: 'pass' },
-    ],
-    gitBranch: 'feat/rnf-seg-01-session-timeout',
-    commit: 'a9f24b1',
-    codeRefs: ['src/context/AuthContext.jsx', 'src/components/layout/GlobalHeader.jsx'],
-    coveragePercentage: 100,
-    criteria: 'Sessão expira aos 60m com aviso de 5 minutos prévio.',
-  },
-  {
-    id: 'REQ-02',
-    code: 'RNF-SEG-03',
-    title: 'Garantia de Votação Única por Utilizador Autenticado em Pedidos',
-    description: 'Restrição de 1 voto no máximo por pedido por utilizador autenticado com unicidade relacional.',
-    category: 'Integridade de Dados',
-    status: 'tracked',
-    originPedido: 'PED-01 / PED-03',
-    stories: [
-      { id: 'US-42', title: 'Persistir votos únicos de utilizadores por pedido', status: 'in_progress' },
-    ],
-    tests: [
-      { id: 'TC-03', name: 'Tentativa de voto duplo no mesmo pedido', status: 'pass' },
-      { id: 'TC-04', name: 'Remoção de voto em segundo clique (toggle)', status: 'pass' },
-    ],
-    gitBranch: 'feat/rnf-seg-03-single-vote',
-    commit: 'c4e88d2',
-    codeRefs: ['src/context/DataContext.jsx', 'src/components/common/VoteCounter.jsx'],
-    coveragePercentage: 100,
-    criteria: 'Conjunto votedBy previne duplicados e bloqueia segundo voto a 100%.',
-  },
-  {
-    id: 'REQ-03',
-    code: 'RF-04',
-    title: 'Filtragem Dinâmica e Deteção de Duplicados em Tempo Real',
-    description: 'Sugestões de pedidos semelhantes durante a redação respondem em < 200 ms.',
-    category: 'Funcional',
-    status: 'partially_tracked',
-    originPedido: 'PED-01',
-    stories: [
-      { id: 'US-31', title: 'Filtrar pedidos por categoria e estado', status: 'in_progress' },
-    ],
-    tests: [
-      { id: 'TC-05', name: 'Filtro por estado e categoria no frontend', status: 'pass' },
-      { id: 'TC-06', name: 'Teste de carga trigramas (< 200ms)', status: 'pending' },
-    ],
-    gitBranch: 'feat/rf-04-fast-search',
-    commit: '7b119a0',
-    codeRefs: ['src/pages/PedidosPage.jsx', 'src/components/common/TextField.jsx'],
-    coveragePercentage: 65,
-    criteria: 'Pesquisa indexada no PostgreSQL e debounce no React.',
-  },
-  {
-    id: 'REQ-04',
-    code: 'RF-08',
-    title: 'Notificações Imediatas de Menções, Decisões e Bloqueios Críticos',
-    description: 'Disparar alertas visuais imediatos no sino e canal de equipa para menções via @nome.',
-    category: 'Comunicação',
-    status: 'partially_tracked',
-    originPedido: 'PED-03',
-    stories: [
-      { id: 'US-55', title: 'Sistema de notificações visuais para menções', status: 'todo' },
-    ],
-    tests: [
-      { id: 'TC-07', name: 'Incremento de badge não lido no sino', status: 'pass' },
-      { id: 'TC-08', name: 'Notificações push via WebSocket', status: 'pending' },
-    ],
-    gitBranch: 'feat/rf-08-notifications-stream',
-    commit: 'e2041a7',
-    codeRefs: ['src/components/layout/GlobalHeader.jsx', 'src/pages/TeamWorkspacePage.jsx'],
-    coveragePercentage: 50,
-    criteria: 'Aguardar serviço de WebSockets para push em tempo real no servidor.',
-  },
-  {
-    id: 'REQ-05',
-    code: 'RF-12',
-    title: 'Exportação Consolidada de Relatórios e Sprints em Formato PDF e CSV',
-    description: 'Geração de atas oficiais e relatórios de métricas para diretores e clientes externos.',
-    category: 'Relatórios',
-    status: 'untracked',
-    originPedido: 'PED-02',
-    stories: [],
-    tests: [],
-    gitBranch: 'pending-branch',
-    commit: '—',
-    codeRefs: [],
-    coveragePercentage: 0,
-    criteria: 'Requisito aprovado pelo PO para arranque na Sprint 13.',
-  },
-]
-
 /**
  * TraceabilityMatrixPage Component
  * Conforme Figma frame 325:2722 ("Matriz de Rastreabilidade de Requisitos", 1600x1200)
@@ -137,11 +34,7 @@ const DEFAULT_TRACEABILITY_ITEMS = [
 export function TraceabilityMatrixPage() {
   const dataContext = useSafeData()
 
-  const liveItems = dataContext.traceability?.length > 0
-    ? dataContext.traceability
-    : DEFAULT_TRACEABILITY_ITEMS
-
-  const [items] = useState(liveItems)
+  const items = useMemo(() => dataContext.traceability || [], [dataContext.traceability])
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [expandedRow, setExpandedRow] = useState(null)

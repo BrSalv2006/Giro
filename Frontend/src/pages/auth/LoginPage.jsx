@@ -8,7 +8,7 @@ import {
   SparklesIcon,
   ShieldCheckIcon,
 } from '../../components/common'
-import { useAuth } from '../../context/AuthContext.jsx'
+import { useAuth, MOCK_USERS } from '../../context/AuthContext.jsx'
 import heroImg from '../../assets/hero.png'
 
 function useSafeAuth() {
@@ -32,12 +32,12 @@ export function LoginPage() {
   const { login, switchRole } = useSafeAuth()
 
   const [email, setEmail] = useState('sofia.costa@giro.com')
-  const [password, setPassword] = useState('••••••••••••')
+  const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault()
     if (!email || !email.includes('@')) {
       setError('Por favor introduza um endereço de e-mail válido.')
@@ -51,26 +51,32 @@ export function LoginPage() {
     setError('')
     setLoading(true)
 
-    setTimeout(() => {
+    try {
+      await login(email, password)
       setLoading(false)
-      login(email, password)
       navigate('/')
-    }, 400)
+    } catch (submitError) {
+      setLoading(false)
+      setError(submitError.message)
+    }
   }
 
   // Acesso direto para testes rápidos dos 5 papéis RBAC
-  const handleQuickLogin = (roleKey, userEmail) => {
+  const handleQuickLogin = async (roleKey, userEmail) => {
     setEmail(userEmail)
     setPassword('demo1234')
     setError('')
     setLoading(true)
-
-    setTimeout(() => {
+    try {
+      await login(userEmail, 'demo1234')
       setLoading(false)
-      switchRole(roleKey)
-      login(userEmail, 'demo1234')
       navigate('/')
-    }, 250)
+    } catch {
+      // Quick role preview remains available without requiring a database account.
+      switchRole(roleKey)
+      setLoading(false)
+      navigate('/')
+    }
   }
 
   return (
@@ -240,9 +246,9 @@ export function LoginPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-xs">
               <button
                 type="button"
-                onClick={() => handleQuickLogin('PRODUCT_OWNER', 'sofia.costa@giro.com')}
+                onClick={() => handleQuickLogin('PRODUCT_OWNER', MOCK_USERS.PRODUCT_OWNER.email)}
                 className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Sofia Costa (Product Owner)"
+                title="Sofia Costa (Product Owner · P01)"
               >
                 <div className="font-semibold text-fg-primary text-[11px]">Sofia Costa</div>
                 <div className="text-[10px] text-fg-secondary truncate">Product Owner</div>
@@ -250,19 +256,19 @@ export function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('ADMIN', 'miguel.alves@giro.com')}
+                onClick={() => handleQuickLogin('ADMIN', MOCK_USERS.ADMIN.email)}
                 className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Miguel Alves (Administrador)"
+                title="Diogo Ferreira (Administrador do Sistema · P05)"
               >
-                <div className="font-semibold text-fg-primary text-[11px]">Miguel Alves</div>
-                <div className="text-[10px] text-fg-secondary truncate">Administrador</div>
+                <div className="font-semibold text-fg-primary text-[11px]">Diogo Ferreira</div>
+                <div className="text-[10px] text-fg-secondary truncate">Administrador do Sistema</div>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('SCRUM_MASTER', 'ines.martins@giro.com')}
+                onClick={() => handleQuickLogin('SCRUM_MASTER', MOCK_USERS.SCRUM_MASTER.email)}
                 className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Inês Martins (Scrum Master)"
+                title="Inês Martins (Scrum Master · P02)"
               >
                 <div className="font-semibold text-fg-primary text-[11px]">Inês Martins</div>
                 <div className="text-[10px] text-fg-secondary truncate">Scrum Master</div>
@@ -270,22 +276,22 @@ export function LoginPage() {
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('DEVELOPER', 'rafael.silva@giro.com')}
+                onClick={() => handleQuickLogin('DEVELOPER', MOCK_USERS.DEVELOPER.email)}
                 className="p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Rafael Silva (Desenvolvedor)"
+                title="Rafael Silva (Programador · P03)"
               >
                 <div className="font-semibold text-fg-primary text-[11px]">Rafael Silva</div>
-                <div className="text-[10px] text-fg-secondary truncate">Developer</div>
+                <div className="text-[10px] text-fg-secondary truncate">Programador</div>
               </button>
 
               <button
                 type="button"
-                onClick={() => handleQuickLogin('CLIENT', 'cliente@empresa.com')}
+                onClick={() => handleQuickLogin('CLIENT', MOCK_USERS.CLIENT.email)}
                 className="col-span-2 sm:col-span-2 p-2 rounded-lg bg-white hover:bg-[#FFE3DC] hover:text-brand-action text-left border border-border-subtle transition-all cursor-pointer font-medium"
-                title="Cliente Externo / Stakeholder"
+                title="Miguel Alves (Cliente Final · P04)"
               >
-                <div className="font-semibold text-fg-primary text-[11px]">Cliente / Stakeholder</div>
-                <div className="text-[10px] text-fg-secondary truncate">Votação & Sugestões</div>
+                <div className="font-semibold text-fg-primary text-[11px]">Miguel Alves</div>
+                <div className="text-[10px] text-fg-secondary truncate">Cliente Final · Votação &amp; Sugestões</div>
               </button>
             </div>
           </div>

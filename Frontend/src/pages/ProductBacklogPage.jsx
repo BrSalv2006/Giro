@@ -31,141 +31,6 @@ function useSafeModal() {
   }
 }
 
-const DEFAULT_BACKLOG_STORIES = [
-  {
-    id: 'US-31',
-    code: 'US-31',
-    title: 'Filtrar pedidos por categoria e estado de análise',
-    epic: 'EP01: Gestão de Pedidos',
-    priority: 'Alta',
-    points: 5,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    targetSprint: 'Sprint 12',
-    status: 'in_progress',
-  },
-  {
-    id: 'US-42',
-    code: 'US-42',
-    title: 'Persistir votos únicos de utilizadores por pedido (RNF-SEG-03)',
-    epic: 'EP05: Participação',
-    priority: 'Alta',
-    points: 3,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    targetSprint: 'Sprint 12',
-    status: 'in_progress',
-  },
-  {
-    id: 'US-48',
-    code: 'US-48',
-    title: 'Visualizar burndown chart e progresso da Sprint 12',
-    epic: 'EP04: Gestão de Sprints',
-    priority: 'Média',
-    points: 5,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    targetSprint: 'Sprint 12',
-    status: 'review',
-  },
-  {
-    id: 'US-51',
-    code: 'US-51',
-    title: 'Deteção automática de pedidos semelhantes em tempo real (< 200 ms)',
-    epic: 'EP01: Gestão de Pedidos',
-    priority: 'Alta',
-    points: 5,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    targetSprint: 'Sprint 13',
-    status: 'todo',
-  },
-  {
-    id: 'US-55',
-    code: 'US-55',
-    title: 'Sistema de notificações visuais para menções de equipa',
-    epic: 'EP05: Participação',
-    priority: 'Média',
-    points: 8,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    targetSprint: 'Sprint 12',
-    status: 'todo',
-  },
-  {
-    id: 'US-60',
-    code: 'US-60',
-    title: 'Temporizador de inatividade de 60 minutos (RNF-SEG-01)',
-    epic: 'EP03: Rastreabilidade',
-    priority: 'Alta',
-    points: 2,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    targetSprint: 'Sprint 12',
-    status: 'done',
-  },
-  {
-    id: 'US-64',
-    code: 'US-64',
-    title: 'Roadmap visual trimestral com marcos de entrega',
-    epic: 'EP06: Lançamentos & Roadmap',
-    priority: 'Alta',
-    points: 8,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    targetSprint: 'Sprint 13',
-    status: 'todo',
-  },
-  {
-    id: 'US-71',
-    code: 'US-71',
-    title: 'Associação direta de pedidos a novas user stories',
-    epic: 'EP02: Backlog & IA',
-    priority: 'Média',
-    points: 5,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    targetSprint: 'Sprint 12',
-    status: 'todo',
-  },
-  {
-    id: 'US-73',
-    code: 'US-73',
-    title: 'Matriz bidirecional com ligações Git e testes automatizados',
-    epic: 'EP03: Rastreabilidade',
-    priority: 'Alta',
-    points: 8,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    targetSprint: 'Sprint 13',
-    status: 'todo',
-  },
-  {
-    id: 'US-75',
-    code: 'US-75',
-    title: 'Exportação consolidada de relatórios em formato CSV e PDF',
-    epic: 'EP06: Lançamentos & Roadmap',
-    priority: 'Baixa',
-    points: 3,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    targetSprint: 'Backlog do produto',
-    status: 'todo',
-  },
-  {
-    id: 'US-82',
-    code: 'US-82',
-    title: 'Sugestões de priorização pelo Gemini com cálculo de esforço',
-    epic: 'EP02: Backlog & IA',
-    priority: 'Alta',
-    points: 5,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    targetSprint: 'Backlog do produto',
-    status: 'todo',
-  },
-  {
-    id: 'US-88',
-    code: 'US-88',
-    title: 'Diálogo de confirmação para ações destrutivas (RNF-USA-03)',
-    epic: 'EP03: Rastreabilidade',
-    priority: 'Média',
-    points: 2,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    targetSprint: 'Backlog do produto',
-    status: 'todo',
-  },
-]
-
 /**
  * ProductBacklogPage Component
  * Conforme Figma frame 326:4341 ("Product Backlog", 1600x1200)
@@ -174,17 +39,29 @@ export function ProductBacklogPage() {
   const dataContext = useSafeData()
   const modalContext = useSafeModal()
 
-  const [stories, setStories] = useState(() => {
-    if (dataContext.stories?.length > 0) {
-      return dataContext.stories.map((s) => ({
-        ...s,
-        code: s.id,
-        targetSprint: s.target || (s.sprint === 'sprint-12' ? 'Sprint 12' : 'Backlog do produto'),
-        epic: s.epic || 'EP02: Backlog & IA',
-      }))
+  const [customOrderIds, setCustomOrderIds] = useState([])
+  const [sortByEffort, setSortByEffort] = useState(false)
+
+  const stories = useMemo(() => {
+    const base = (dataContext.stories || []).map((s) => ({
+      ...s,
+      code: s.id,
+      targetSprint: s.target || (s.sprint === 'sprint-12' ? 'Sprint 12' : 'Backlog do produto'),
+      epic: s.epic || 'EP02: Backlog & IA',
+    }))
+    if (sortByEffort) {
+      return [...base].sort((a, b) => (b.points || 0) - (a.points || 0))
     }
-    return DEFAULT_BACKLOG_STORIES
-  })
+    if (customOrderIds.length > 0) {
+      const rank = new Map(customOrderIds.map((id, idx) => [id, idx]))
+      return [...base].sort((a, b) => {
+        const ra = rank.has(a.id) ? rank.get(a.id) : Number.MAX_SAFE_INTEGER
+        const rb = rank.has(b.id) ? rank.get(b.id) : Number.MAX_SAFE_INTEGER
+        return ra - rb
+      })
+    }
+    return base
+  }, [dataContext.stories, customOrderIds, sortByEffort])
 
   const [searchTerm, setSearchTerm] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('ALL')
@@ -198,24 +75,27 @@ export function ProductBacklogPage() {
     const updated = [...stories]
     const [moved] = updated.splice(index, 1)
     updated.splice(targetIndex, 0, moved)
-    setStories(updated)
+    setSortByEffort(false)
+    setCustomOrderIds(updated.map((s) => s.id))
     setNotice(`✓ Ordem de ${moved.code} atualizada no Product Backlog.`)
     setTimeout(() => setNotice(''), 3000)
   }
 
   // Mover story para Sprint 12
-  const handleAssignSprint = (storyId, newSprint) => {
-    setStories((prev) =>
-      prev.map((s) => (s.id === storyId ? { ...s, targetSprint: newSprint } : s))
-    )
-    if (dataContext.updateStory) {
-      dataContext.updateStory(storyId, {
-        target: newSprint,
-        sprint: newSprint === 'Sprint 12' ? 'sprint-12' : null,
-      })
+  const handleAssignSprint = async (storyId, newSprint) => {
+    try {
+      if (dataContext.updateStory) {
+        await dataContext.updateStory(storyId, {
+          target: newSprint,
+          sprint: newSprint === 'Sprint 12' ? 'sprint-12' : null,
+        })
+      }
+      setNotice(`✓ ${storyId} atribuído a ${newSprint}.`)
+      setTimeout(() => setNotice(''), 3000)
+    } catch (assignError) {
+      setNotice(assignError.message || 'Não foi possível atribuir a história ao sprint.')
+      setTimeout(() => setNotice(''), 3500)
     }
-    setNotice(`✓ ${storyId} atribuído a ${newSprint}.`)
-    setTimeout(() => setNotice(''), 3000)
   }
 
   // Filtragem
@@ -307,9 +187,8 @@ export function ProductBacklogPage() {
               variant="secondary"
               className="text-xs"
               onClick={() => {
-                const sorted = [...stories].sort((a, b) => (b.points || 0) - (a.points || 0))
-                setStories(sorted)
-                setNotice('Histórias ordenadas por Story Points decrescentes.')
+                setSortByEffort((prev) => !prev)
+                setNotice(!sortByEffort ? 'Histórias ordenadas por Story Points decrescentes.' : 'Ordem estratégica restaurada.')
                 setTimeout(() => setNotice(''), 3000)
               }}
             >

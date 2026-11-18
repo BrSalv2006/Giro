@@ -16,8 +16,8 @@ const DESTINATION_OPTIONS = [
 const ASSIGNEE_OPTIONS = [
   { value: 'Sofia Costa', label: 'Sofia Costa (Product Owner)' },
   { value: 'Inês Martins', label: 'Inês Martins (Scrum Master)' },
-  { value: 'Rafael Silva', label: 'Rafael Silva (Developer)' },
-  { value: 'Miguel Alves', label: 'Miguel Alves (Cliente)' },
+  { value: 'Rafael Silva', label: 'Rafael Silva (Programador)' },
+  { value: 'Diogo Ferreira', label: 'Diogo Ferreira (Administrador do Sistema)' },
   { value: 'Por atribuir', label: 'Por atribuir' },
 ]
 
@@ -51,7 +51,7 @@ const MAX_TITLE_LENGTH = 120
  */
 export function CreateStoryModal() {
   const { isCreateStoryModalOpen, closeCreateStoryModal } = useModal()
-  const { currentUser } = useAuth()
+  const { currentUser, roleLabel } = useAuth()
   const { pedidos, addStory } = useData()
 
   // Estados locais do formulário
@@ -118,7 +118,7 @@ export function CreateStoryModal() {
     }
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     const newErrors = {}
@@ -138,6 +138,7 @@ export function CreateStoryModal() {
     }
 
     setIsSubmitting(true)
+    setErrors({})
 
     // Determina objeto do responsável
     const assigneeObj =
@@ -150,25 +151,39 @@ export function CreateStoryModal() {
               .map((n) => n[0])
               .join('')
               .toUpperCase(),
-            role: assignee === 'Rafael Silva' ? 'Developer' : 'Membro de Equipa',
+            role: assignee === 'Rafael Silva'
+              ? 'Programador'
+              : assignee === 'Sofia Costa'
+              ? 'Product Owner'
+              : assignee === 'Inês Martins'
+              ? 'Scrum Master'
+              : assignee === 'Diogo Ferreira'
+              ? 'Administrador do Sistema'
+              : 'Membro de Equipa',
           }
 
-    addStory({
-      title: title.trim(),
-      description: description.trim(),
-      acceptanceCriteria: acceptanceCriteria
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean),
-      target,
-      assignee: assigneeObj,
-      priority,
-      points: points === 'Por estimar' ? null : parseInt(points, 10),
-      linkedPedidoId: linkedPedidoId || null,
-    })
-
-    resetForm()
-    closeCreateStoryModal()
+    try {
+      await addStory({
+        title: title.trim(),
+        description: description.trim(),
+        acceptanceCriteria: acceptanceCriteria
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(Boolean),
+        target,
+        sprint: target === 'Sprint 12' ? 'sprint-12' : null,
+        assignee: assigneeObj,
+        priority,
+        points: points === 'Por estimar' ? null : parseInt(points, 10),
+        linkedPedidoId: linkedPedidoId || null,
+      })
+      resetForm()
+      closeCreateStoryModal()
+    } catch (submitError) {
+      setErrors({ submit: submitError.message || 'Não foi possível criar a User Story.' })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -214,6 +229,11 @@ export function CreateStoryModal() {
 
         {/* 2. Formulário / Corpo */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {errors.submit && (
+            <div role="alert" className="rounded-lg border border-feedback-errorBorder bg-feedback-errorBg px-3 py-2 text-sm text-feedback-errorFg">
+              {errors.submit}
+            </div>
+          )}
           {/* Título da User Story */}
           <div>
             <div className="flex justify-between items-center mb-1.5">
@@ -370,14 +390,14 @@ export function CreateStoryModal() {
         </form>
 
         {/* 3. Rodapé com Informação do Criador e Ações */}
-        <div className="px-6 py-4 border-t border-border-subtle bg-bg-page flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-          <div className="flex items-center gap-2.5 text-xs text-fg-secondary">
+        <div className="px-6 py-4 border-t border-border-subtle bg-bg-page flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 select-none">
+          <div className="hidden sm:flex items-center gap-2.5 text-xs text-fg-secondary min-w-0">
             <Avatar
               name={currentUser?.name || 'Sofia Costa'}
               size={28}
             />
-            <span>
-              <strong className="text-fg-primary">Autor:</strong> {currentUser?.name || 'Sofia Costa'} ({currentUser?.role || 'Product Owner'})
+            <span className="truncate">
+              <strong className="text-fg-primary">Autor:</strong> {currentUser?.name || 'Sofia Costa'} ({roleLabel || 'Product Owner'})
             </span>
           </div>
 

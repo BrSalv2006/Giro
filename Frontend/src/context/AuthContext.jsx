@@ -1,8 +1,29 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, MOCK_USERS } from './authConstants.js'
+import {
+  ROLES,
+  ROLE_CODES,
+  ROLE_BY_CODE,
+  ROLE_LABELS,
+  ROLE_PERMISSIONS,
+  MOCK_USERS,
+  getRoleCode,
+  getRoleLabel,
+  normalizeRoleKey,
+} from './authConstants.js'
+import { apiRequest, getToken, setToken } from '../services/api.js'
 
-export { ROLES, ROLE_LABELS, ROLE_PERMISSIONS, MOCK_USERS }
+export {
+  ROLES,
+  ROLE_CODES,
+  ROLE_BY_CODE,
+  ROLE_LABELS,
+  ROLE_PERMISSIONS,
+  MOCK_USERS,
+  getRoleCode,
+  getRoleLabel,
+  normalizeRoleKey,
+}
 
 // 60 minutos de inatividade conforme RNF-SEG-01 (em milissegundos)
 const DEFAULT_INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000
@@ -11,9 +32,12 @@ const WARNING_THRESHOLD_MS = 5 * 60 * 1000 // aviso aos 55 minutos (restam 5 min
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  // Utilizador ativo: Default Sofia Costa (Product Owner)
-  const [currentUser, setCurrentUser] = useState(MOCK_USERS.PRODUCT_OWNER)
-  const [isAuthenticated, setIsAuthenticated] = useState(true)
+  const storedToken = getToken()
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem('giro_user') || 'null') } catch { return null }
+  })()
+  const [currentUser, setCurrentUser] = useState(storedUser)
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(storedToken && storedUser))
 
   // Estados de gestão de sessão e inatividade (RNF-SEG-01)
   const [inactivityTimeoutMs, setInactivityTimeoutMs] = useState(DEFAULT_INACTIVITY_TIMEOUT_MS)
@@ -82,10 +106,27 @@ export function AuthProvider({ children }) {
     return () => clearInterval(interval)
   }, [isAuthenticated, lastActivity, inactivityTimeoutMs])
 
+const mapApiUser = (apiUser) => ({
+  id: apiUser.id,
+  name: apiUser.nome,
+  email: apiUser.email,
+  initials: String(apiUser.nome || 'US')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase(),
+  role: ROLE_BY_CODE[apiUser.papel] || ROLES.CLIENT,
+  roleCode: apiUser.papel || ROLE_CODES.CLIENT,
+})
+
   // Alterna o papel (RBAC Switcher)
   const switchRole = useCallback((roleKey) => {
     const targetUser = MOCK_USERS[roleKey]
     if (targetUser) {
+      setToken(null)
+      localStorage.setItem('giro_user', JSON.stringify(targetUser))
       setCurrentUser(targetUser)
       setIsAuthenticated(true)
       resetInactivity()
@@ -93,19 +134,40 @@ export function AuthProvider({ children }) {
   }, [resetInactivity])
 
   // Login
-  const login = useCallback((email) => {
-    // Procura utilizador por e-mail nos mock users ou mantém o atual
-    const foundUser = Object.values(MOCK_USERS).find((u) => u.email.toLowerCase() === email?.toLowerCase())
-    if (foundUser) {
-      setCurrentUser(foundUser)
-    }
+  const login = useCallback(async (email, password) => {
+    const result = await apiRequest('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+    const user = mapApiUser(result.user)
+    setToken(result.token)
+    localStorage.setItem('giro_user', JSON.stringify(user))
+    setCurrentUser(user)
     setIsAuthenticated(true)
     setIsLoggedOutDueToInactivity(false)
     resetInactivity()
+    return user
+  }, [resetInactivity])
+
+  const register = useCallback(async ({ name, email, password, role = ROLE_CODES.CLIENT }) => {
+    const result = await apiRequest('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ nome: name, email, password, papel: role }),
+    })
+    setToken(result.token)
+    const user = mapApiUser(result.user)
+    localStorage.setItem('giro_user', JSON.stringify(user))
+    setCurrentUser(user)
+    setIsAuthenticated(true)
+    resetInactivity()
+    return user
   }, [resetInactivity])
 
   // Logout manual
   const logout = useCallback(() => {
+    setToken(null)
+    localStorage.removeItem('giro_user')
+    setCurrentUser(null)
     setIsAuthenticated(false)
     setIsWarningActive(false)
     setIsLoggedOutDueToInactivity(false)
@@ -125,17 +187,20 @@ export function AuthProvider({ children }) {
 
   const permissions = ROLE_PERMISSIONS[currentUser?.role] || ROLE_PERMISSIONS.CLIENT
 
+  const role = currentUser?.role || ROLES.CLIENT
   const value = {
     currentUser,
     isAuthenticated,
-    role: currentUser?.role || ROLES.CLIENT,
-    roleLabel: ROLE_LABELS[currentUser?.role] || currentUser?.role,
+    role,
+    roleCode: currentUser?.roleCode || ROLE_CODES[role] || ROLE_CODES.CLIENT,
+    roleLabel: getRoleLabel(role),
     permissions,
     isWarningActive,
     isLoggedOutDueToInactivity,
     remainingSeconds,
     inactivityTimeoutMs,
     login,
+    register,
     logout,
     switchRole,
     resetInactivity,

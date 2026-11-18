@@ -44,21 +44,15 @@ export const Button = React.forwardRef(function Button(
 ) {
   const isDisabled = disabled || loading
 
-  const renderIcon = (position) => {
-    if (loading && iconPosition === position) {
-      return <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden="true" />
-    }
-
-    if (iconPosition !== position || !icon) return null
-
+  const renderIcon = (IconOrElement) => {
+    if (!IconOrElement) return null
     if (React.isValidElement(icon)) {
       return React.cloneElement(icon, {
-        className: cn('w-4 h-4 shrink-0', icon.props.className),
+        className: cn('w-4 h-4 shrink-0', IconOrElement.props.className),
         'aria-hidden': 'true',
       })
     }
-
-    const IconComp = icon
+    const IconComp = IconOrElement
     return <IconComp className="w-4 h-4 shrink-0" aria-hidden="true" />
   }
 
@@ -84,19 +78,14 @@ export const Button = React.forwardRef(function Button(
       )}
       {...props}
     >
-      {/* Spinner sem ícone configurado na esquerda */}
-      {loading && !icon && iconPosition === 'left' && (
+      {loading && iconPosition === 'left' && (
         <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden="true" />
       )}
-
-      {renderIcon('left')}
+      {!loading && icon && iconPosition === 'left' && renderIcon(icon)}
 
       {children && <span className="truncate">{children}</span>}
-
-      {renderIcon('right')}
-
-      {/* Spinner sem ícone configurado na direita */}
-      {loading && !icon && iconPosition === 'right' && (
+      {!loading && icon && iconPosition === 'right' && renderIcon(icon)}
+      {loading && iconPosition === 'right' && (
         <Loader2 className="w-4 h-4 shrink-0 animate-spin" aria-hidden="true" />
       )}
     </button>

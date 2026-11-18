@@ -17,121 +17,6 @@ function useSafeData() {
   }
 }
 
-const DEFAULT_NOTIFICATIONS = [
-  {
-    id: 'notif-01',
-    title: 'Revisão pendente',
-    description: 'Rafael Silva pediu a sua validação da US-42: Filtragem multidimensional de pedidos.',
-    refCode: 'US-42 · T42',
-    timestamp: 'Hoje, 10:31',
-    category: 'mencoes',
-    type: 'comment',
-    read: false,
-    timeGroup: 'HOJE',
-    storyId: 'US-42',
-    assignee: 'Sofia Costa',
-    fullDetail: 'Rafael Silva aguarda a sua validação dos critérios de aceitação da US-42 (Filtragem multidimensional). Os testes unitários estão com 100% de aprovação.',
-  },
-  {
-    id: 'notif-02',
-    title: 'Bloqueio no sprint',
-    description: 'A exportação CSV está bloqueada por falta de acesso à API de relatórios.',
-    refCode: 'US-31 · T31',
-    timestamp: 'Hoje, 09:20',
-    category: 'bloqueios',
-    type: 'impediment',
-    read: false,
-    timeGroup: 'HOJE',
-    storyId: 'US-31',
-    assignee: 'Inês Martins',
-    fullDetail: 'A equipa não consegue avançar na US-31 devido a restrições de rede no ambiente de staging. Notificação encaminhada ao Scrum Master.',
-  },
-  {
-    id: 'notif-03',
-    title: 'Foi mencionada numa discussão',
-    description: 'Inês Martins mencionou-a na conversa sobre os critérios de aceitação.',
-    refCode: 'Team Workspace',
-    timestamp: 'Hoje, 09:05',
-    category: 'mencoes',
-    type: 'comment',
-    read: false,
-    timeGroup: 'HOJE',
-    storyId: 'US-24',
-    assignee: 'Sofia Costa',
-    fullDetail: 'Inês Martins comentou: «@Sofia Costa poderias confirmar se o limite de exportação de 10.000 linhas cumpre os requisitos do cliente?»',
-  },
-  {
-    id: 'notif-04',
-    title: 'Decisão de Produto aprovada',
-    description: 'O pedido de exportação em PDF (PED-02) foi selecionado para ser convertido em história de utilizador.',
-    refCode: 'Sprint 13',
-    timestamp: 'Ontem às 17:40',
-    category: 'decisoes',
-    type: 'status',
-    read: true,
-    timeGroup: 'ONTEM',
-    storyId: 'PED-02',
-    assignee: 'Sofia Costa',
-    fullDetail: 'Decisão formalizada na reunião de refinamento. A estimativa inicial aponta para 5 Story Points.',
-  },
-  {
-    id: 'notif-05',
-    title: 'Sugestão de priorização por IA',
-    description: 'O Gemini analisou 14 novos pedidos com pontuação média de impacto 8.5/10.',
-    refCode: 'Backlog Refinement',
-    timestamp: 'Ontem às 14:15',
-    category: 'decisoes',
-    type: 'ai',
-    read: true,
-    timeGroup: 'ONTEM',
-    storyId: 'US-42',
-    assignee: 'Giro AI Copilot',
-    fullDetail: 'A recomendação baseia-se nos votos ponderados de utilizadores frequentes e correlação com épicos do Q4.',
-  },
-  {
-    id: 'notif-06',
-    title: 'Novo voto no pedido PED-05',
-    description: 'Miguel Alves votou na «Integração bidirecional com repositórios GitHub e GitLab».',
-    refCode: 'PED-05',
-    timestamp: 'Esta semana',
-    category: 'decisoes',
-    type: 'vote',
-    read: true,
-    timeGroup: 'ESTA SEMANA',
-    storyId: 'PED-05',
-    assignee: 'Comunidade',
-    fullDetail: 'O pedido PED-05 ultrapassou o limiar de 40 votos da comunidade e foi sinalizado para triagem prioritária.',
-  },
-  {
-    id: 'notif-07',
-    title: 'Bloqueio resolvido na US-60',
-    description: 'Acesso à infraestrutura de auditoria concedido. O temporizador de inatividade de 60m foi aprovado.',
-    refCode: 'US-60 · Auditoria',
-    timestamp: 'Esta semana',
-    category: 'bloqueios',
-    type: 'status',
-    read: true,
-    timeGroup: 'ESTA SEMANA',
-    storyId: 'US-60',
-    assignee: 'Rafael Silva',
-    fullDetail: 'Conformidade com o RNF-SEG-01 verificada e validada em ambiente de testes de integração.',
-  },
-  {
-    id: 'notif-08',
-    title: 'Sprint 12 iniciado com sucesso',
-    description: 'O Sprint Backlog foi aprovado pelo Product Owner com 26 Story Points.',
-    refCode: 'Sprint 12',
-    timestamp: 'Esta semana',
-    category: 'decisoes',
-    type: 'status',
-    read: true,
-    timeGroup: 'ESTA SEMANA',
-    storyId: 'US-12',
-    assignee: 'Inês Martins',
-    fullDetail: 'Sprint 12 em curso até 23 de outubro de 2026. Acompanhamento diário no quadro Kanban.',
-  },
-]
-
 /**
  * NotificationsPage Component
  * Baseado no Figma frame 336:1156 ("Histórico de Notificações", 1600x1200)
@@ -141,7 +26,7 @@ export function NotificationsPage() {
   const dataContext = useSafeData()
 
   // Estado local com sincronização para contexto se presente
-  const [items, setItems] = useState(DEFAULT_NOTIFICATIONS)
+  const items = useMemo(() => dataContext.notifications || [], [dataContext.notifications])
   const [activeTab, setActiveTab] = useState('todas') // 'todas' | 'nao-lidas' | 'mencoes' | 'decisoes' | 'bloqueios'
   const [selectedId, setSelectedId] = useState('notif-01')
 
@@ -200,22 +85,19 @@ export function NotificationsPage() {
 
   // Ações
   const handleMarkAsRead = (id) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, read: true } : item))
-    )
     if (dataContext.markNotificationAsRead) {
       dataContext.markNotificationAsRead(id)
     }
   }
 
   const handleToggleRead = (id) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, read: !item.read } : item))
-    )
+    if (dataContext.notifications) {
+      const item = dataContext.notifications.find((notification) => notification.id === id)
+      if (item && !item.read) dataContext.markNotificationAsRead(id)
+    }
   }
 
   const handleDismiss = (id) => {
-    setItems((prev) => prev.filter((item) => item.id !== id))
     if (selectedId === id) {
       const remaining = items.filter((item) => item.id !== id)
       if (remaining.length > 0) setSelectedId(remaining[0].id)
@@ -223,7 +105,6 @@ export function NotificationsPage() {
   }
 
   const handleMarkAllAsRead = () => {
-    setItems((prev) => prev.map((item) => ({ ...item, read: true })))
     if (dataContext.markAllNotificationsAsRead) {
       dataContext.markAllNotificationsAsRead()
     }

@@ -15,6 +15,16 @@ const STATUS_CONFIG = {
     badgeClass: 'bg-[#FEF3C7] text-[#7A4D00]',
     dotClass: 'bg-[#F59E0B]',
   },
+  approved: {
+    label: 'Aprovado',
+    badgeClass: 'bg-[#E0F2FE] text-[#0369A1]',
+    dotClass: 'bg-[#0284C7]',
+  },
+  planned: {
+    label: 'Planeado',
+    badgeClass: 'bg-[#EDE9FE] text-[#5B21B6]',
+    dotClass: 'bg-[#7C3AED]',
+  },
   development: {
     label: 'Em desenvolvimento',
     badgeClass: 'bg-[#EDE9FE] text-[#5B21B6]',
@@ -37,20 +47,34 @@ const STATUS_CONFIG = {
  */
 const STATUS_ALIASES = {
   pending: 'pending',
+  submetido: 'pending',
+  backlog: 'pending',
+  todo: 'pending',
   'por-analisar': 'pending',
   'por_analisar': 'pending',
   analysis: 'analysis',
   'em-analise': 'analysis',
   'em_analise': 'analysis',
+  em_revisao: 'analysis',
+  review: 'analysis',
+  approved: 'approved',
+  aprovado: 'approved',
+  planned: 'planned',
+  planeado: 'planned',
   development: 'development',
+  in_progress: 'development',
+  em_progresso: 'development',
   'em-desenvolvimento': 'development',
   'em_desenvolvimento': 'development',
   complete: 'complete',
   completed: 'complete',
+  done: 'complete',
   concluido: 'complete',
   'concluído': 'complete',
   rejected: 'rejected',
   rejeitado: 'rejected',
+  blocked: 'rejected',
+  bloqueado: 'rejected',
 }
 
 /**

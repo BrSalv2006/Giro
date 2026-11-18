@@ -1,715 +1,1423 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useCallback, useMemo } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useAuth } from './AuthContext.jsx'
+import { ROLES, ROLE_CODES, getRoleCode, getRoleLabel, normalizeRoleKey } from './authConstants.js'
+import { apiRequest, getToken } from '../services/api.js'
 
 const DataContext = createContext(null)
 
-// 1. Seed Inicial de Pedidos (10 itens com estados, categorias e votos alinhados ao Figma)
-const INITIAL_PEDIDOS = [
+const SESSION_MESSAGES_KEY = 'giro_workspace_messages_v1'
+
+const PEDIDO_STATUS = {
+  SUBMETIDO: 'pending',
+  EM_ANALISE: 'analysis',
+  APROVADO: 'approved',
+  PLANEADO: 'planned',
+  EM_DESENVOLVIMENTO: 'development',
+  CONCLUIDO: 'complete',
+  REJEITADO: 'rejected',
+}
+
+const BACKEND_PEDIDO_STATUS = {
+  pending: 'SUBMETIDO',
+  analysis: 'EM_ANALISE',
+  approved: 'APROVADO',
+  planned: 'PLANEADO',
+  development: 'EM_DESENVOLVIMENTO',
+  complete: 'CONCLUIDO',
+  rejected: 'REJEITADO',
+}
+
+const STORY_STATUS = {
+  BACKLOG: 'todo',
+  TODO: 'todo',
+  EM_PROGRESSO: 'in_progress',
+  EM_REVISAO: 'review',
+  CONCLUIDO: 'done',
+  BLOQUEADO: 'blocked',
+}
+
+const BACKEND_STORY_STATUS = {
+  todo: 'TODO',
+  in_progress: 'EM_PROGRESSO',
+  review: 'EM_REVISAO',
+  done: 'CONCLUIDO',
+  blocked: 'BLOQUEADO',
+}
+
+const ROLE_SCOPE_MAP = {
+  PRODUCT_OWNER: 'Gestão do Backlog, priorização e aprovação de pedidos',
+  SCRUM_MASTER: 'Facilitação ágil, remoção de impedimentos e roadmap',
+  DEVELOPER: 'Implementação técnica no Sprint, testes e estimativas',
+  CLIENT: 'Submissão de sugestões, votação única e comentários',
+  ADMIN: 'Gestão de contas RBAC, segurança e auditoria do sistema',
+}
+
+const DEMO_USERS = [
   {
-    id: 'PED-01',
-    title: 'Filtro avançado por tags e prioridade na listagem de pedidos',
-    description: 'Permitir aos Product Owners e stakeholders filtrar pedidos combinando múltiplas etiquetas e faixas de votação para agilizar a triagem do backlog.',
-    category: 'MELHORIA',
-    status: 'analysis', // Em análise
-    voteCount: 24,
-    votedBy: ['usr-po-01', 'usr-dev-01', 'usr-cli-01'], // Sofia Costa já votou
-    tags: ['filtros', 'ux', 'backlog'],
-    createdAt: '2026-11-04T10:30:00Z',
-    author: { name: 'Sofia Costa', role: 'Product Owner', avatar: 'SC' },
-    linkedStoryId: 'US-31',
+    id: 'usr-po-01',
+    name: 'Sofia Costa',
+    email: 'sofia.costa@giro.com',
+    role: ROLES.PRODUCT_OWNER,
+    roleCode: ROLE_CODES.PRODUCT_OWNER,
+    active: true,
+    scope: ROLE_SCOPE_MAP.PRODUCT_OWNER,
   },
   {
-    id: 'PED-02',
-    title: 'Exportação de relatórios de sprint em PDF e CSV com cabeçalho oficial',
-    description: 'Possibilidade de gerar relatórios consolidados no fim de cada ciclo de sprint para partilhar com os clientes e diretores executivos.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'development', // Em desenvolvimento
-    voteCount: 18,
-    votedBy: ['usr-adm-01', 'usr-sm-01'],
-    tags: ['relatorios', 'sprint', 'pdf'],
-    createdAt: '2026-11-02T14:15:00Z',
-    author: { name: 'Inês Martins', role: 'Scrum Master', avatar: 'IM' },
-    linkedStoryId: 'US-24',
+    id: 'usr-sm-01',
+    name: 'Inês Martins',
+    email: 'ines.martins@giro.com',
+    role: ROLES.SCRUM_MASTER,
+    roleCode: ROLE_CODES.SCRUM_MASTER,
+    active: true,
+    scope: ROLE_SCOPE_MAP.SCRUM_MASTER,
   },
   {
-    id: 'PED-03',
-    title: 'Notificações em tempo real para menções e decisões em comentários',
-    description: 'Disparar alertas visuais imediatos quando um membro da equipa for mencionado via @nome numa discussão de requisito ou história.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'pending', // Por analisar
-    voteCount: 35,
-    votedBy: ['usr-po-01', 'usr-dev-01', 'usr-cli-01'], // Sofia Costa já votou
-    tags: ['notificacoes', 'tempo-real', 'colaboracao'],
-    createdAt: '2026-11-06T09:00:00Z',
-    author: { name: 'Miguel Alves', role: 'Cliente', avatar: 'MA' },
-    linkedStoryId: 'US-55',
+    id: 'usr-dev-01',
+    name: 'Rafael Silva',
+    email: 'rafael.silva@giro.com',
+    role: ROLES.DEVELOPER,
+    roleCode: ROLE_CODES.DEVELOPER,
+    active: true,
+    scope: ROLE_SCOPE_MAP.DEVELOPER,
   },
   {
-    id: 'PED-04',
-    title: 'Erro ao reordenar colunas e cards no quadro Kanban do Sprint',
-    description: 'Quando dois cartões são arrastados em simultâneo ou em conexões lentas, a ordem do DOM entrava em conflito com o estado local.',
-    category: 'BUG',
-    status: 'complete', // Concluído
-    voteCount: 12,
-    votedBy: ['usr-dev-01'],
-    tags: ['kanban', 'sprint', 'bug-corrigido'],
-    createdAt: '2026-10-28T16:20:00Z',
-    author: { name: 'Rafael Silva', role: 'Developer', avatar: 'RS' },
-    linkedStoryId: null,
+    id: 'usr-cli-01',
+    name: 'Miguel Alves',
+    email: 'miguel.alves@cliente.com',
+    role: ROLES.CLIENT,
+    roleCode: ROLE_CODES.CLIENT,
+    active: true,
+    scope: ROLE_SCOPE_MAP.CLIENT,
   },
   {
-    id: 'PED-05',
-    title: 'Integração bidirecional com repositórios GitHub e GitLab',
-    description: 'Sincronizar commits e pull requests diretamente com as User Stories associadas para rastreabilidade de código automatizada.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'pending', // Por analisar
-    voteCount: 41,
-    votedBy: ['usr-cli-01', 'usr-dev-01', 'usr-adm-01'],
-    tags: ['integracao', 'github', 'devops'],
-    createdAt: '2026-11-07T11:45:00Z',
-    author: { name: 'Diogo Ferreira', role: 'Administrador', avatar: 'DF' },
-    linkedStoryId: null,
-  },
-  {
-    id: 'PED-06',
-    title: 'Modo escuro (Dark Mode) acessível em toda a plataforma Giro',
-    description: 'Adicionar alternador de tema claro/escuro com contraste adequado conforme as diretrizes WCAG 2.1 AA.',
-    category: 'MELHORIA',
-    status: 'analysis', // Em análise
-    voteCount: 29,
-    votedBy: ['usr-po-01', 'usr-sm-01'], // Sofia Costa já votou
-    tags: ['tema', 'acessibilidade', 'ui'],
-    createdAt: '2026-11-05T08:15:00Z',
-    author: { name: 'Sofia Costa', role: 'Product Owner', avatar: 'SC' },
-    linkedStoryId: null,
-  },
-  {
-    id: 'PED-07',
-    title: 'Falha de validação de caracteres especiais no título da história',
-    description: 'Símbolos como aspas duplas, cedilhas ou acentos estavam a ser codificados incorretamente no resumo do card.',
-    category: 'BUG',
-    status: 'development', // Em desenvolvimento
-    voteCount: 7,
-    votedBy: ['usr-dev-01'],
-    tags: ['validacao', 'caracteres', 'bug'],
-    createdAt: '2026-11-08T15:00:00Z',
-    author: { name: 'Rafael Silva', role: 'Developer', avatar: 'RS' },
-    linkedStoryId: null,
-  },
-  {
-    id: 'PED-08',
-    title: 'Adicionar estimativa de esforço com Story Points no modal de criação',
-    description: 'Permitir selecionar a sequência de Fibonacci (1, 2, 3, 5, 8, 13) ao registar rapidamente novas histórias de utilizador.',
-    category: 'MELHORIA',
-    status: 'complete', // Concluído
-    voteCount: 15,
-    votedBy: ['usr-po-01', 'usr-sm-01', 'usr-dev-01'], // Sofia Costa já votou
-    tags: ['backlog', 'story-points', 'agilidade'],
-    createdAt: '2026-10-25T11:00:00Z',
-    author: { name: 'Inês Martins', role: 'Scrum Master', avatar: 'IM' },
-    linkedStoryId: null,
-  },
-  {
-    id: 'PED-09',
-    title: 'Módulo de auditoria de acessibilidade WCAG 2.1 AA automatizado',
-    description: 'Executar scanner contínuo de contraste e tags aria-label em todas as vistas do produto.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'rejected', // Rejeitado
-    voteCount: 9,
-    votedBy: ['usr-cli-01'],
-    tags: ['acessibilidade', 'auditoria'],
-    createdAt: '2026-10-20T17:30:00Z',
-    author: { name: 'Miguel Alves', role: 'Cliente', avatar: 'MA' },
-    linkedStoryId: null,
-  },
-  {
-    id: 'PED-10',
-    title: 'Visualização de métricas de velocity e burndown chart por sprint',
-    description: 'Gráfico interativo de queima de pontos de esforço e média de velocidade histórica da equipa de desenvolvimento.',
-    category: 'NOVA_FUNCIONALIDADE',
-    status: 'analysis', // Em análise
-    voteCount: 33,
-    votedBy: ['usr-po-01', 'usr-sm-01', 'usr-dev-01'], // Sofia Costa já votou
-    tags: ['metricas', 'sprint', 'scrum', 'burndown'],
-    createdAt: '2026-11-03T13:20:00Z',
-    author: { name: 'Inês Martins', role: 'Scrum Master', avatar: 'IM' },
-    linkedStoryId: 'US-48',
+    id: 'usr-adm-01',
+    name: 'Diogo Ferreira',
+    email: 'diogo.ferreira@giro.com',
+    role: ROLES.ADMIN,
+    roleCode: ROLE_CODES.ADMIN,
+    active: true,
+    scope: ROLE_SCOPE_MAP.ADMIN,
   },
 ]
 
-// 2. Seed Inicial de User Stories (Sprint 12 + Backlog)
-const INITIAL_STORIES = [
+const DEMO_PEDIDOS = [
   {
-    id: 'US-31',
-    title: 'Filtrar pedidos por categoria e estado de análise',
-    description: 'Como Product Owner, quero filtrar os pedidos por categoria e estado, para acelerar a triagem e priorização no backlog do produto.',
+    id: 'PED-01',
+    title: 'Filtros avançados por estado e categoria na listagem de pedidos',
+    description: 'Permitir combinar filtros de categoria (Bug, Melhoria, Nova Funcionalidade) e estado de ciclo de vida com resposta rápida.',
+    category: 'MELHORIA',
+    status: 'development',
+    backendStatus: 'EM_DESENVOLVIMENTO',
+    effort: 3,
+    impact: 9,
+    voteCount: 24,
+    votedBy: ['usr-po-01', 'usr-cli-01'],
+    tags: ['ux', 'pesquisa', 'filtros'],
+    createdAt: '2026-10-12T09:30:00Z',
+    author: { name: 'Miguel Alves', role: 'P04', avatar: 'MA' },
+    linkedStoryId: 'US-31',
+    aiRecommendation: 'Quick Win recomendado para Sprint 12',
+    aiConfidence: '92% confiança (PII sanitizado)',
+    comments: [
+      {
+        id: 'cmt-01',
+        content: 'Seria muito útil guardar o último filtro aplicado na sessão.',
+        createdAt: '2026-10-13T11:15:00Z',
+        authorName: 'Miguel Alves',
+        authorRole: 'P04',
+      },
+      {
+        id: 'cmt-02',
+        content: 'Critérios validados e incluídos na US-31 para a Sprint 12.',
+        createdAt: '2026-10-14T15:00:00Z',
+        authorName: 'Sofia Costa',
+        authorRole: 'P01',
+      },
+    ],
+    history: [],
+  },
+  {
+    id: 'PED-02',
+    title: 'Exportação de relatórios e matriz de rastreabilidade em CSV e PDF',
+    description: 'Disponibilizar exportação dos indicadores de Sprint e matriz RF/US/Testes para partilha em reuniões de revisão.',
+    category: 'NOVA_FUNCIONALIDADE',
+    status: 'complete',
+    backendStatus: 'CONCLUIDO',
+    effort: 2,
+    impact: 8,
+    voteCount: 19,
+    votedBy: ['usr-po-01', 'usr-sm-01'],
+    tags: ['relatorios', 'csv', 'pdf'],
+    createdAt: '2026-10-08T14:20:00Z',
+    author: { name: 'Inês Martins', role: 'P02', avatar: 'IM' },
+    linkedStoryId: 'US-24',
+    aiRecommendation: 'Alto retorno e baixo esforço (Quick Win)',
+    aiConfidence: '95% confiança (PII sanitizado)',
+    comments: [],
+    history: [],
+  },
+  {
+    id: 'PED-03',
+    title: 'Garantir unicidade de voto por utilizador (RNF-SEG-03)',
+    description: 'Assegurar que cada utilizador autenticado apenas consegue manter 1 voto ativo por pedido com alternância imediata.',
+    category: 'MELHORIA',
+    status: 'development',
+    backendStatus: 'EM_DESENVOLVIMENTO',
+    effort: 3,
+    impact: 10,
+    voteCount: 31,
+    votedBy: ['usr-adm-01', 'usr-cli-01'],
+    tags: ['seguranca', 'votacao', 'rnf-seg-03'],
+    createdAt: '2026-10-10T10:00:00Z',
+    author: { name: 'Diogo Ferreira', role: 'P05', avatar: 'DF' },
+    linkedStoryId: 'US-42',
+    aiRecommendation: 'Prioridade crítica de segurança',
+    aiConfidence: '97% confiança (PII sanitizado)',
+    comments: [],
+    history: [],
+  },
+  {
+    id: 'PED-04',
+    title: 'Integração bidirecional de dependências acíclicas no Roadmap',
+    description: 'Detetar automaticamente ciclos A -> B -> A no grafo de dependências entre User Stories antes da gravação.',
+    category: 'NOVA_FUNCIONALIDADE',
+    status: 'approved',
+    backendStatus: 'APROVADO',
+    effort: 5,
+    impact: 9,
+    voteCount: 15,
+    votedBy: ['usr-sm-01'],
+    tags: ['roadmap', 'dependencias'],
+    createdAt: '2026-10-14T16:45:00Z',
+    author: { name: 'Inês Martins', role: 'P02', avatar: 'IM' },
+    linkedStoryId: 'US-45',
+    aiRecommendation: 'Aposta estratégica para Q4',
+    aiConfidence: '88% confiança (PII sanitizado)',
+    comments: [],
+    history: [],
+  },
+  {
+    id: 'PED-05',
+    title: 'Sugestão automática de pedidos semelhantes ao escrever o título',
+    description: 'Pesquisa por trigramas em tempo real após 3 caracteres para evitar duplicados durante a submissão de novos pedidos.',
+    category: 'NOVA_FUNCIONALIDADE',
+    status: 'analysis',
+    backendStatus: 'EM_ANALISE',
+    effort: 2,
+    impact: 8,
+    voteCount: 14,
+    votedBy: ['usr-cli-01'],
+    tags: ['pesquisa', 'duplicados', 'trigramas'],
+    createdAt: '2026-10-15T11:10:00Z',
+    author: { name: 'Miguel Alves', role: 'P04', avatar: 'MA' },
+    linkedStoryId: null,
+    aiRecommendation: 'Quick Win sugerido para triagem',
+    aiConfidence: '90% confiança (PII sanitizado)',
+    comments: [],
+    history: [],
+  },
+  {
+    id: 'PED-06',
+    title: 'Corrigir alinhamento de badges em ecrãs móveis de 375px',
+    description: 'Algumas etiquetas de prioridade quebram linha de forma irregular em ecrãs compactos.',
+    category: 'BUG',
+    status: 'pending',
+    backendStatus: 'SUBMETIDO',
+    effort: 1,
+    impact: 4,
+    voteCount: 6,
+    votedBy: [],
+    tags: ['ui', 'responsivo'],
+    createdAt: '2026-10-16T08:50:00Z',
+    author: { name: 'Rafael Silva', role: 'P03', avatar: 'RS' },
+    linkedStoryId: null,
+    aiRecommendation: 'Tarefa de preenchimento de baixo esforço',
+    aiConfidence: '84% confiança (PII sanitizado)',
+    comments: [],
+    history: [],
+  },
+]
+
+const DEMO_SPRINTS = [
+  {
+    idSprint: 'sprint-12',
+    numeroSprint: 12,
+    dataInicio: '2026-10-12T00:00:00Z',
+    dataFim: '2026-10-23T23:59:59Z',
+    capacidadeMaxima: 28,
+    estado: 'ATIVO',
+  },
+  {
+    idSprint: 'sprint-13',
+    numeroSprint: 13,
+    dataInicio: '2026-10-26T00:00:00Z',
+    dataFim: '2026-11-06T23:59:59Z',
+    capacidadeMaxima: 28,
+    estado: 'PLANEADO',
+  },
+]
+
+const DEMO_STORIES = [
+  {
+    id: 'US-24',
+    backendId: 'us-24-uuid',
+    title: 'Exportar relatórios de Sprint e Rastreabilidade em CSV/PDF',
+    description: 'Como Scrum Master, quero exportar indicadores e matriz de rastreabilidade, para partilhar progresso nas cerimónias.',
     acceptanceCriteria: [
-      'Permitir selecionar múltiplos estados (Por analisar, Em análise, etc.)',
-      'Filtrar instantaneamente sem recarregar a página',
-      'Exibir contador de resultados ativos',
+      'Gerar ficheiro CSV com colunas RF, US, Pedido e Estado',
+      'Apresentar confirmação visual imediata após exportação',
     ],
     target: 'Sprint 12',
     sprint: 'sprint-12',
-    status: 'in_progress', // todo | in_progress | review | done
+    status: 'done',
+    backendStatus: 'CONCLUIDO',
     priority: 'Alta',
     points: 5,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    impediment: null,
-    linkedPedidoId: 'PED-01',
-    createdAt: '2026-11-05T09:00:00Z',
+    effort: 4,
+    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Programador' },
+    impediment: false,
+    linkedPedidoId: 'PED-02',
+    pedidoCode: 'PED-02',
+    epic: 'EP03: Analítica & Exportação',
   },
   {
-    id: 'US-42',
-    title: 'Persistir votos únicos de utilizadores por pedido (RNF-SEG-03)',
-    description: 'Como developer, quero restringir a votação a no máximo 1 voto por utilizador autenticado, para garantir a integridade da priorização.',
+    id: 'US-31',
+    backendId: 'us-31-uuid',
+    title: 'Filtrar pedidos por categoria e estado de ciclo de vida',
+    description: 'Como Product Owner, quero filtrar pedidos por categoria e estado, para acelerar a triagem do backlog.',
     acceptanceCriteria: [
-      'Utilizador não pode votar duas vezes no mesmo pedido',
-      'Clicar novamente no botão de voto remove o voto anterior (toggle)',
-      'Contador reflete a contagem exata de utilizadores únicos',
+      'Suportar seleção combinada de categoria e estado',
+      'Atualizar contagem de resultados em menos de 200 ms',
     ],
     target: 'Sprint 12',
     sprint: 'sprint-12',
     status: 'in_progress',
-    priority: 'Urgente',
-    points: 3,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    impediment: 'Bloqueado por aprovação técnica da migração de base de dados e índices únicos.',
-    linkedPedidoId: null,
-    createdAt: '2026-11-06T10:15:00Z',
+    backendStatus: 'EM_PROGRESSO',
+    priority: 'Alta',
+    points: 5,
+    effort: 3,
+    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Programador' },
+    impediment: 'Aguardar validação final dos filtros de trigramas',
+    linkedPedidoId: 'PED-01',
+    pedidoCode: 'PED-01',
+    epic: 'EP01: Gestão de Pedidos',
   },
   {
-    id: 'US-48',
-    title: 'Visualizar burndown chart e progresso da Sprint 12',
-    description: 'Como Scrum Master, quero acompanhar a evolução diária dos story points concluídos, para prever desvios na meta do ciclo.',
+    id: 'US-42',
+    backendId: 'us-42-uuid',
+    title: 'Aplicar restrição de voto único por utilizador e pedido (RNF-SEG-03)',
+    description: 'Como Administrador do Sistema, quero garantir unicidade de voto na BD e interface, para assegurar transparência na votação.',
     acceptanceCriteria: [
-      'Linha ideal vs. linha real de pontos restantes',
-      'Indicação de dias restantes da sprint (3 dias)',
-      'Cálculo da velocity projetada',
+      'Restrição UNIQUE (id_utilizador, id_pedido) ativa',
+      'Permitir alternar (adicionar/retirar) apenas o próprio voto',
     ],
     target: 'Sprint 12',
     sprint: 'sprint-12',
     status: 'review',
-    priority: 'Média',
-    points: 5,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    impediment: null,
-    linkedPedidoId: 'PED-10',
-    createdAt: '2026-11-04T11:30:00Z',
-  },
-  {
-    id: 'US-55',
-    title: 'Sistema de notificações visuais para menções de equipa',
-    description: 'Como utilizador, quero receber alerta com indicador vermelho no sino sempre que alguém me mencionar, para responder prontamente.',
-    acceptanceCriteria: [
-      'Badge vermelho no cabeçalho indicando total não lido',
-      'Listagem com filtro por menções, decisões e bloqueios',
-      'Ação de marcar todas como lidas com um clique',
-    ],
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'todo',
-    priority: 'Média',
+    backendStatus: 'EM_REVISAO',
+    priority: 'Urgente',
     points: 8,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    impediment: null,
+    effort: 6,
+    assignee: { name: 'Diogo Ferreira', initials: 'DF', role: 'Administrador do Sistema' },
+    impediment: 'Revisão final de testes de concorrência pendente',
     linkedPedidoId: 'PED-03',
-    createdAt: '2026-11-07T14:00:00Z',
+    pedidoCode: 'PED-03',
+    epic: 'EP04: Segurança & RBAC',
   },
   {
-    id: 'US-24',
-    title: 'Exportar pedidos e atas de sprint para documento PDF',
-    description: 'Como utilizador, quero transferir a lista de pedidos aprovados para PDF formatado, para relatórios com stakeholders externos.',
+    id: 'US-44',
+    backendId: 'us-44-uuid',
+    title: 'Workspace colaborativo da equipa com canais de Sprint',
+    description: 'Como Programador, quero comunicar bloqueios e decisões por canal no workspace, para manter alinhamento com a equipa.',
     acceptanceCriteria: [
-      'Geração direta no navegador',
-      'Cabeçalho com logo do Giro e data de emissão',
-      'Tabela com ID, título, autor e votos',
+      'Canais #geral, #sprint-planning e #bloqueios ativos',
+      'Visualizar carga de tarefas por membro da equipa',
     ],
     target: 'Sprint 12',
     sprint: 'sprint-12',
-    status: 'done',
-    priority: 'Baixa',
-    points: 3,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    impediment: null,
-    linkedPedidoId: 'PED-02',
-    createdAt: '2026-11-01T16:00:00Z',
-  },
-  {
-    id: 'US-60',
-    title: 'Temporizador de inatividade de 60 minutos (RNF-SEG-01)',
-    description: 'Como developer, quero desconectar automaticamente sessões inativas após 60 minutos de ausência, para cumprir os requisitos de segurança.',
-    acceptanceCriteria: [
-      'Reset do temporizador a cada movimento do rato ou tecla',
-      'Aviso aos 55 minutos com opção de estender',
-      'Redirecionamento para ecrã de sessão expirada aos 60m',
-    ],
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'done',
-    priority: 'Alta',
-    points: 2,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    impediment: null,
-    linkedPedidoId: null,
-    createdAt: '2026-10-30T10:00:00Z',
-  },
-  {
-    id: 'US-64',
-    title: 'Roadmap visual trimestral com marcos de entrega',
-    description: 'Como cliente, quero consultar a linha temporal com as fases planeadas, para saber quando as funcionalidades estarão em produção.',
-    acceptanceCriteria: [
-      'Visualização agrupada por trimestres (Q1, Q2, Q3, Q4)',
-      'Indicadores de estado (Em curso, Planeado, Concluído)',
-    ],
-    target: 'Backlog do produto',
-    sprint: null,
     status: 'todo',
-    priority: 'Alta',
-    points: 8,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    impediment: null,
-    linkedPedidoId: null,
-    createdAt: '2026-11-08T08:30:00Z',
-  },
-  {
-    id: 'US-71',
-    title: 'Associação direta de pedidos a novas user stories',
-    description: 'Como PO, quero poder converter ou associar um pedido da comunidade a uma história no momento da sua criação.',
-    acceptanceCriteria: [
-      'Dropdown com pedidos elegíveis no modal de criação',
-      'Link bidirecional exibido no detalhe da história',
-    ],
-    target: 'Backlog do produto',
-    sprint: null,
-    status: 'todo',
+    backendStatus: 'TODO',
     priority: 'Média',
+    points: 6,
+    effort: 0,
+    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
+    impediment: false,
+    linkedPedidoId: 'PED-01',
+    pedidoCode: 'PED-01',
+    epic: 'EP02: Colaboração & Rituais',
+  },
+  {
+    id: 'US-45',
+    backendId: 'us-45-uuid',
+    title: 'Validação acíclica de dependências entre User Stories no Roadmap',
+    description: 'Como Scrum Master, quero impedir dependências circulares no Roadmap, para garantir planeamento consistente.',
+    acceptanceCriteria: [
+      'Detetar ciclos antes da persistência com erro HTTP 409',
+      'Renderizar dependências no painel de release',
+    ],
+    target: 'Backlog do produto',
+    sprint: null,
+    status: 'todo',
+    backendStatus: 'BACKLOG',
+    priority: 'Alta',
     points: 5,
+    effort: 0,
     assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    impediment: null,
-    linkedPedidoId: null,
-    createdAt: '2026-11-09T11:00:00Z',
+    impediment: false,
+    linkedPedidoId: 'PED-04',
+    pedidoCode: 'PED-04',
+    epic: 'EP05: Roadmap & Releases',
   },
 ]
 
-// 3. Seed Inicial de Matriz de Rastreabilidade (5 requisitos: 2 tracked, 2 partially tracked, 1 untracked)
-const INITIAL_TRACEABILITY = [
+const DEMO_ROADMAP = [
   {
-    id: 'REQ-01',
-    code: 'RNF-SEG-01',
-    title: 'Autenticação e Expiração Automática de Sessão por Inatividade (60m)',
-    category: 'Segurança',
-    status: 'tracked', // tracked | partially_tracked | untracked
-    stories: ['US-60'],
-    tests: ['TC-01: Verificação de timeout de 60 minutos', 'TC-02: Reset em clique ou movimento'],
-    codeRefs: ['src/context/AuthContext.jsx', 'src/components/layout/ProtectedRoute.jsx'],
-    coveragePercentage: 100,
-    notes: 'Totalmente implementado no AuthContext e protegido por listeners no AppLayout.',
+    idRelease: 'rel-2026-q3',
+    tituloRelease: 'Release 2026.Q3',
+    descricao: 'Fundação de pedidos, votação única e autenticação JWT',
+    dataInicio: '2026-07-01T00:00:00Z',
+    dataFim: '2026-09-30T23:59:59Z',
+    marcoCritico: true,
+    userStories: [
+      { codigoUs: 'US-24', titulo: 'Exportação CSV/PDF', estadoTecnico: 'CONCLUIDO' },
+    ],
   },
   {
-    id: 'REQ-02',
-    code: 'RNF-SEG-03',
-    title: 'Garantia de Votação Única por Utilizador Autenticado em Pedidos',
-    category: 'Integridade de Dados',
-    status: 'tracked',
-    stories: ['US-42'],
-    tests: ['TC-03: Tentativa de voto duplo no mesmo pedido', 'TC-04: Remoção de voto existente'],
-    codeRefs: ['src/context/DataContext.jsx', 'src/components/common/VoteCounter.jsx'],
-    coveragePercentage: 100,
-    notes: 'Validação de utilizador único com conjunto de IDs (votedBy) no DataContext.',
+    idRelease: 'rel-2026-q4',
+    tituloRelease: 'Release 2026.Q4',
+    descricao: 'Priorização assistida por IA, Sprint Kanban e Matriz de Rastreabilidade',
+    dataInicio: '2026-10-01T00:00:00Z',
+    dataFim: '2026-12-20T23:59:59Z',
+    marcoCritico: true,
+    userStories: [
+      { codigoUs: 'US-31', titulo: 'Filtros avançados de pedidos', estadoTecnico: 'EM_PROGRESSO' },
+      { codigoUs: 'US-42', titulo: 'Unicidade de voto RNF-SEG-03', estadoTecnico: 'EM_REVISAO' },
+      { codigoUs: 'US-44', titulo: 'Team Workspace colaborativo', estadoTecnico: 'TODO' },
+    ],
   },
   {
-    id: 'REQ-03',
-    code: 'RF-04',
-    title: 'Filtragem Dinâmica e Priorização Multicritério do Backlog',
-    category: 'Funcional',
-    status: 'partially_tracked',
-    stories: ['US-31'],
-    tests: ['TC-05: Filtro por estado e categoria'],
-    codeRefs: ['src/components/modals/NewFeatureModal.jsx'],
-    coveragePercentage: 65,
-    notes: 'Falta teste de carga automatizado com ordenação combinada por votos e pontuação.',
-  },
-  {
-    id: 'REQ-04',
-    code: 'RF-08',
-    title: 'Notificações Imediatas de Menções, Decisões e Bloqueios Críticos',
-    category: 'Comunicação',
-    status: 'partially_tracked',
-    stories: ['US-55'],
-    tests: ['TC-06: Incremento de contagem não lida'],
-    codeRefs: ['src/components/layout/GlobalHeader.jsx', 'src/components/common/NotificationItem.jsx'],
-    coveragePercentage: 50,
-    notes: 'Aguardar serviço de WebSockets para push notifications em tempo real no servidor.',
-  },
-  {
-    id: 'REQ-05',
-    code: 'RF-12',
-    title: 'Exportação Consolidada de Relatórios e Sprints em Formato PDF e CSV',
-    category: 'Relatórios',
-    status: 'untracked',
-    stories: [],
-    tests: [],
-    codeRefs: [],
-    coveragePercentage: 0,
-    notes: 'Requisito aprovado na ata de produto mas ainda sem histórias associadas na Sprint corrente.',
+    idRelease: 'rel-2027-q1',
+    tituloRelease: 'Release 2027.Q1',
+    descricao: 'Automação de dependências no Roadmap e integrações externas',
+    dataInicio: '2027-01-05T00:00:00Z',
+    dataFim: '2027-03-31T23:59:59Z',
+    marcoCritico: false,
+    userStories: [
+      { codigoUs: 'US-45', titulo: 'Validação acíclica de dependências', estadoTecnico: 'BACKLOG' },
+    ],
   },
 ]
 
-// 4. Seed Inicial de Canais e Mensagens da Equipa
-const INITIAL_CHANNELS = [
-  { id: 'geral', name: 'geral', label: '#geral', description: 'Canal de anúncios e comunicação geral da equipa Giro' },
-  { id: 'sprint-12', name: 'sprint-12', label: '#sprint-12', description: 'Acompanhamento do sprint corrente e alinhamento diário' },
-  { id: 'bugs-alertas', name: 'bugs-alertas', label: '#bugs-alertas', description: 'Relato urgente de impedimentos e bugs em produção' },
-  { id: 'decisoes-produto', name: 'decisoes-produto', label: '#decisoes-produto', description: 'Registo de decisões do PO e aprovação de requisitos' },
-]
-
-const INITIAL_MESSAGES = {
-  'geral': [
-    {
-      id: 'msg-g-01',
-      sender: { name: 'Diogo Ferreira', role: 'Administrador', initials: 'DF' },
-      content: 'Bem-vindos à nova versão da plataforma Giro! O ambiente de testes com RBAC está ativo.',
-      timestamp: 'Hoje às 09:15',
-    },
-    {
-      id: 'msg-g-02',
-      sender: { name: 'Sofia Costa', role: 'Product Owner', initials: 'SC' },
-      content: 'Lembrem-se que a priorização dos pedidos para a Sprint 13 encerra esta sexta-feira.',
-      timestamp: 'Hoje às 10:00',
-    },
-  ],
-  'sprint-12': [
-    {
-      id: 'msg-s-01',
-      sender: { name: 'Inês Martins', role: 'Scrum Master', initials: 'IM' },
-      content: 'Daily standup concluído. Restam 3 dias de Sprint 12 e já temos 60% dos story points concluídos.',
-      timestamp: 'Hoje às 10:45',
-    },
-    {
-      id: 'msg-s-02',
-      sender: { name: 'Rafael Silva', role: 'Developer', initials: 'RS' },
-      content: 'A US-42 (Voto único RNF-SEG-03) está praticamente concluída, apenas aguardo validação final.',
-      timestamp: 'Hoje às 11:20',
-    },
-  ],
-  'bugs-alertas': [
-    {
-      id: 'msg-b-01',
-      sender: { name: 'Rafael Silva', role: 'Developer', initials: 'RS' },
-      content: 'Aviso: Identificado bloqueio externo temporário na API de testes. A US-42 tem dependência registada.',
-      timestamp: 'Hoje às 11:05',
-    },
-  ],
-  'decisoes-produto': [
-    {
-      id: 'msg-d-01',
-      sender: { name: 'Sofia Costa', role: 'Product Owner', initials: 'SC' },
-      content: 'Decisão oficial: O módulo de PDF e relatórios (RF-12) foi agendado para arranque na Sprint 13.',
-      timestamp: 'Hoje às 09:40',
-    },
-  ],
-}
-
-// 5. Seed Inicial de Notificações (~8 realistas com estados lido/não-lido e categorias)
-const INITIAL_NOTIFICATIONS = [
+const DEMO_NOTIFICATIONS = [
   {
     id: 'notif-01',
-    title: 'Sofia Costa mencionou-o na US-42',
-    description: 'Por favor rever a regra de validação do RNF-SEG-03 para garantir que o utilizador não possa votar 2 vezes.',
-    category: 'mencoes', // mencoes | decisoes | bloqueios
+    title: 'Atualização de estado em PED-01',
+    description: 'Sofia Costa aprovou PED-01 e associou à User Story US-31 no Sprint 12.',
+    category: 'decisoes',
     read: false,
-    timestamp: 'Há 12 minutos',
-    createdAt: '2026-11-10T10:00:00Z',
+    createdAt: '2026-10-16T10:15:00Z',
+    timeGroup: 'HOJE',
+    timestamp: 'Há 25 min',
+    refCode: 'PED-01 · US-31',
+    assignee: 'Rafael Silva',
+    storyId: 'US-31',
     author: { name: 'Sofia Costa', initials: 'SC' },
   },
   {
     id: 'notif-02',
-    title: 'Decisão de Produto aprovada para a Sprint 13',
-    description: 'O pedido de exportação em PDF (PED-02) foi selecionado para ser convertido em história de utilizador.',
-    category: 'decisoes',
-    read: false,
-    timestamp: 'Há 45 minutos',
-    createdAt: '2026-11-10T09:30:00Z',
-    author: { name: 'Sofia Costa', initials: 'SC' },
-  },
-  {
-    id: 'notif-03',
-    title: 'Bloqueio reportado na US-42 (Voto único)',
-    description: 'Rafael Silva sinalizou um impedimento técnico: dependência da migração de índices de utilizadores.',
+    title: 'Bloqueio assinalado em US-42',
+    description: 'Diogo Ferreira sinalizou revisão pendente de testes de concorrência para RNF-SEG-03.',
     category: 'bloqueios',
     read: false,
-    timestamp: 'Há 1 hora',
-    createdAt: '2026-11-10T09:15:00Z',
-    author: { name: 'Rafael Silva', initials: 'RS' },
-  },
-  {
-    id: 'notif-04',
-    title: 'Novo pedido criado por Miguel Alves',
-    description: '"Integração bidirecional com repositórios GitHub e GitLab" recebeu 41 votos da comunidade.',
-    category: 'decisoes',
-    read: true,
-    timestamp: 'Há 3 horas',
-    createdAt: '2026-11-10T07:15:00Z',
-    author: { name: 'Miguel Alves', initials: 'MA' },
-  },
-  {
-    id: 'notif-05',
-    title: 'Rafael Silva respondeu ao seu alerta em #bugs-alertas',
-    description: 'A correção para o conflito de arrastar e largar no Kanban da Sprint 12 já foi incorporada em produção.',
-    category: 'mencoes',
-    read: false,
-    timestamp: 'Há 4 horas',
-    createdAt: '2026-11-10T06:15:00Z',
-    author: { name: 'Rafael Silva', initials: 'RS' },
-  },
-  {
-    id: 'notif-06',
-    title: 'Meta da Sprint 12: 65% concluída',
-    description: 'Faltam 3 dias para o encerramento do ciclo. 18 de 26 Story Points já se encontram no estado Concluído.',
-    category: 'decisoes',
-    read: true,
-    timestamp: 'Ontem',
-    createdAt: '2026-11-09T17:00:00Z',
-    author: { name: 'Inês Martins', initials: 'IM' },
-  },
-  {
-    id: 'notif-07',
-    title: 'Bloqueio resolvido na US-60',
-    description: 'Acesso à infraestrutura de auditoria concedido. O temporizador de inatividade de 60m foi aprovado.',
-    category: 'bloqueios',
-    read: true,
-    timestamp: 'Ontem',
-    createdAt: '2026-11-09T14:20:00Z',
+    createdAt: '2026-10-16T09:05:00Z',
+    timeGroup: 'HOJE',
+    timestamp: 'Há 1h',
+    refCode: 'US-42 · RNF-SEG-03',
+    assignee: 'Diogo Ferreira',
+    storyId: 'US-42',
     author: { name: 'Diogo Ferreira', initials: 'DF' },
   },
   {
-    id: 'notif-08',
-    title: 'Inês Martins atualizou o estado da US-48',
-    description: 'A história "Visualizar burndown chart e progresso" avançou para a coluna de Revisão Técnica.',
-    category: 'decisoes',
+    id: 'notif-03',
+    title: 'Menção no canal #sprint-planning',
+    description: 'Inês Martins mencionou Rafael Silva para confirmar capacidade da Sprint 12.',
+    category: 'mencoes',
     read: true,
-    timestamp: 'Há 2 dias',
-    createdAt: '2026-11-08T16:00:00Z',
+    createdAt: '2026-10-15T17:30:00Z',
+    timeGroup: 'ONTEM',
+    timestamp: 'Ontem às 17:30',
+    refCode: 'Sprint 12',
+    assignee: 'Rafael Silva',
+    storyId: 'US-44',
     author: { name: 'Inês Martins', initials: 'IM' },
   },
 ]
 
+const DEMO_LOGS = [
+  {
+    id: 'log-01',
+    action: 'ATUALIZACAO_PERMISSOES',
+    resource: 'Utilizador/usr-dev-01',
+    details: { papel: 'P03', label: 'Programador', ativo: true },
+    timestamp: '2026-10-16T08:40:00Z',
+    userId: 'usr-adm-01',
+    userName: 'Diogo Ferreira',
+    userRole: 'P05',
+  },
+  {
+    id: 'log-02',
+    action: 'ALTERACAO_ESTADO',
+    resource: 'Pedido/PED-01',
+    details: { de: 'APROVADO', para: 'EM_DESENVOLVIMENTO' },
+    timestamp: '2026-10-16T09:20:00Z',
+    userId: 'usr-po-01',
+    userName: 'Sofia Costa',
+    userRole: 'P01',
+  },
+  {
+    id: 'log-03',
+    action: 'PRIORIZACAO_IA',
+    resource: 'Pedido/PED-05',
+    details: { piiSanitized: true, quadrante: 'quick_wins' },
+    timestamp: '2026-10-16T10:05:00Z',
+    userId: 'usr-po-01',
+    userName: 'Sofia Costa',
+    userRole: 'P01',
+  },
+]
+
+const DEMO_CHANNELS = [
+  {
+    id: 'geral',
+    name: 'geral',
+    description: 'Alinhamento diário da equipa GIRO, avisos gerais e decisões de produto.',
+    unread: 0,
+  },
+  {
+    id: 'sprint-planning',
+    name: 'sprint-planning',
+    description: 'Planeamento do Sprint 12, estimativas em Story Points e capacidade da equipa.',
+    unread: 1,
+  },
+  {
+    id: 'bloqueios',
+    name: 'bloqueios',
+    description: 'Registo rápido de impedimentos técnicos e acompanhamento pelo Scrum Master.',
+    unread: 1,
+  },
+]
+
+const DEMO_MESSAGES = {
+  geral: [
+    {
+      id: 'msg-01',
+      channelId: 'geral',
+      author: { name: 'Sofia Costa', initials: 'SC', role: ROLES.PRODUCT_OWNER, roleLabel: 'Product Owner' },
+      content: 'Bom dia equipa! Os pedidos mais votados da semana foram triados na Matriz 2x2.',
+      createdAt: '2026-10-16T09:00:00Z',
+    },
+    {
+      id: 'msg-02',
+      channelId: 'geral',
+      author: { name: 'Rafael Silva', initials: 'RS', role: ROLES.DEVELOPER, roleLabel: 'Programador' },
+      content: 'Excelente! Já estou a finalizar os filtros avançados da US-31 antes da Daily.',
+      createdAt: '2026-10-16T09:12:00Z',
+    },
+  ],
+  'sprint-planning': [
+    {
+      id: 'msg-03',
+      channelId: 'sprint-planning',
+      author: { name: 'Inês Martins', initials: 'IM', role: ROLES.SCRUM_MASTER, roleLabel: 'Scrum Master' },
+      content: 'Sprint 12 está com 24 de 28 Story Points comprometidos. Mantemos margem de segurança para bugs.',
+      createdAt: '2026-10-15T16:40:00Z',
+    },
+  ],
+  bloqueios: [
+    {
+      id: 'msg-04',
+      channelId: 'bloqueios',
+      author: { name: 'Diogo Ferreira', initials: 'DF', role: ROLES.ADMIN, roleLabel: 'Administrador do Sistema' },
+      content: 'US-42 aguarda revisão final dos testes de concorrência para unicidade de voto (RNF-SEG-03).',
+      createdAt: '2026-10-16T08:55:00Z',
+    },
+  ],
+}
+
+function loadInitialMessages() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_MESSAGES_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') return parsed
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return DEMO_MESSAGES
+}
+
+export function stripPii(text) {
+  if (typeof text !== 'string') return ''
+  return text
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[EMAIL_REMOVIDO]')
+    .replace(/(?:\+?\d{1,3}[\s.-]?)?(?:\d[\s.-]?){9,12}/g, '[CONTACTO_REMOVIDO]')
+    .trim()
+}
+
+function buildTrigrams(str) {
+  const padded = `  ${String(str || '').toLowerCase().trim()}  `
+  const set = new Set()
+  for (let i = 0; i <= padded.length - 3; i += 1) {
+    set.add(padded.slice(i, i + 3))
+  }
+  return set
+}
+
+function computeSimilarityScore(query, target) {
+  const q = String(query || '').toLowerCase().trim()
+  const t = String(target || '').toLowerCase().trim()
+  if (!q || !t) return 0
+  if (t.includes(q)) return 0.95
+  const qWords = q.split(/\s+/).filter((w) => w.length >= 2)
+  const wordMatches = qWords.filter((word) => t.includes(word)).length
+  const wordScore = qWords.length ? wordMatches / qWords.length : 0
+
+  const a = buildTrigrams(q)
+  const b = buildTrigrams(t)
+  let intersection = 0
+  for (const trigram of a) {
+    if (b.has(trigram)) intersection += 1
+  }
+  const trigramScore = (2 * intersection) / (a.size + b.size || 1)
+  return Math.max(trigramScore, wordScore * 0.85)
+}
+
+function computeLocalHeuristicPrioritization(pedido) {
+  const sanitizedTitle = stripPii(pedido?.title || '')
+  const sanitizedDesc = stripPii(pedido?.description || '')
+  const text = `${sanitizedTitle} ${sanitizedDesc}`.toLowerCase()
+  const votes = Number(pedido?.voteCount || 0)
+
+  let impact = pedido?.impact ?? (votes >= 20 ? 9 : votes >= 10 ? 8 : 6)
+  let effort = pedido?.effort ?? (text.includes('integra') || text.includes('arquitet') ? 5 : 3)
+
+  if (pedido?.category === 'BUG') {
+    effort = Math.min(effort, 2)
+    impact = Math.max(impact, 7)
+  }
+
+  const quadrant =
+    impact >= 8 && effort <= 3
+      ? 'quick_wins'
+      : impact >= 8
+      ? 'strategic'
+      : impact <= 4
+      ? 'reconsider'
+      : 'fill_in'
+
+  const recommendationMap = {
+    quick_wins: 'Quick Win recomendado (Alto impacto / Baixo esforço)',
+    strategic: 'Aposta estratégica — decompor em épico no Roadmap',
+    fill_in: 'Melhoria incremental para folga de Sprint',
+    reconsider: 'Reavaliar relação custo-benefício com stakeholders',
+  }
+
+  return {
+    impact,
+    effort,
+    quadrant,
+    recommendation: recommendationMap[quadrant],
+    confidence: 'Heurística local (PII sanitizado)',
+    piiSanitized: true,
+    sanitizedPreview: sanitizedTitle,
+  }
+}
+
+function normalizeUserRecord(user) {
+  const roleKey = normalizeRoleKey(user.papel || user.role)
+  const roleCode = getRoleCode(user.papel || user.role)
+  return {
+    id: user.idUtilizador || user.id,
+    name: user.nome || user.name || 'Utilizador',
+    email: user.email || '',
+    role: roleKey,
+    roleCode,
+    active: user.ativo !== undefined ? Boolean(user.ativo) : user.active !== false,
+    scope: user.scope || ROLE_SCOPE_MAP[roleKey] || 'Membro da plataforma GIRO',
+  }
+}
+
+function normalizeCommentRecord(comment) {
+  const authorName = comment.utilizador?.nome || comment.authorName || 'Utilizador'
+  const authorRole = comment.utilizador?.papel || comment.authorRole || ''
+  return {
+    id: comment.idComentario || comment.id || `cmt-${Date.now()}`,
+    content: comment.conteudo || comment.content || '',
+    createdAt: comment.dataCriacao || comment.createdAt || new Date().toISOString(),
+    authorName,
+    authorRole,
+  }
+}
+
+function normalizePedidoRecord(pedido) {
+  const authorName = pedido.autor?.nome || pedido.author?.name || 'Utilizador'
+  const authorRole = pedido.autor?.papel || pedido.author?.role || ''
+  return {
+    id: pedido.idPedido || pedido.id,
+    title: pedido.titulo || pedido.title || '',
+    description: pedido.descricao || pedido.description || '',
+    category: pedido.categoria || pedido.category || 'NOVA_FUNCIONALIDADE',
+    status: PEDIDO_STATUS[pedido.estado] || pedido.status || 'pending',
+    backendStatus: pedido.estado || pedido.backendStatus || 'SUBMETIDO',
+    effort: pedido.esforcoEstimado ?? pedido.effort ?? null,
+    impact: pedido.impactoNegocio ?? pedido.impact ?? null,
+    voteCount: pedido.votos?.length ?? pedido.voteCount ?? 0,
+    votedBy: pedido.votos?.map((voto) => voto.idUtilizador) || pedido.votedBy || [],
+    tags: pedido.tags || [],
+    createdAt: pedido.dataCriacao || pedido.createdAt || new Date().toISOString(),
+    author: {
+      name: authorName,
+      role: authorRole,
+      avatar: pedido.author?.avatar || authorName.slice(0, 2).toUpperCase() || 'US',
+    },
+    linkedStoryId: pedido.userStories?.[0]?.codigoUs || pedido.linkedStoryId || null,
+    aiRecommendation: pedido.aiRecommendation || null,
+    aiConfidence: pedido.aiConfidence || null,
+    comments: Array.isArray(pedido.comentarios)
+      ? pedido.comentarios.map(normalizeCommentRecord)
+      : Array.isArray(pedido.comments)
+      ? pedido.comments.map(normalizeCommentRecord)
+      : [],
+    history: pedido.historico || pedido.history || [],
+  }
+}
+
+function normalizeLogRecord(log, usersList = []) {
+  const matchedUser = usersList.find((u) => u.id === log.idUtilizador)
+  return {
+    id: log.idLog || log.id,
+    action: log.acao || log.action || 'ACAO_SISTEMA',
+    resource: log.recurso || log.resource || 'Sistema',
+    details: log.detalhes || log.details || null,
+    timestamp: log.dataHora || log.timestamp || new Date().toISOString(),
+    userId: log.idUtilizador || log.userId || null,
+    userName: log.utilizador?.nome || matchedUser?.name || log.userName || 'Sistema',
+    userRole: log.utilizador?.papel || matchedUser?.roleCode || log.userRole || '',
+  }
+}
+
 export function DataProvider({ children }) {
   const { currentUser } = useAuth()
+  const hasToken = Boolean(getToken())
+  const dataSourceRef = useRef(hasToken ? 'api' : 'demo')
 
-  const [pedidos, setPedidos] = useState(INITIAL_PEDIDOS)
-  const [stories, setStories] = useState(INITIAL_STORIES)
-  const [traceability, setTraceability] = useState(INITIAL_TRACEABILITY)
-  const [channels] = useState(INITIAL_CHANNELS)
-  const [messages, setMessages] = useState(INITIAL_MESSAGES)
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS)
+  const [pedidos, setPedidos] = useState(() => (hasToken ? [] : DEMO_PEDIDOS))
+  const [stories, setStories] = useState(() => (hasToken ? [] : DEMO_STORIES))
+  const [sprints, setSprints] = useState(() => (hasToken ? [] : DEMO_SPRINTS))
+  const [roadmap, setRoadmap] = useState(() => (hasToken ? [] : DEMO_ROADMAP))
+  const [notifications, setNotifications] = useState(() => (hasToken ? [] : DEMO_NOTIFICATIONS))
+  const [users, setUsers] = useState(() => (hasToken ? [] : DEMO_USERS))
+  const [logs, setLogs] = useState(() => (hasToken ? [] : DEMO_LOGS))
+  const [traceability, setTraceability] = useState([])
+  const [channels] = useState(DEMO_CHANNELS)
+  const [messages, setMessages] = useState(loadInitialMessages)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  // 1. Pedidos (Funcionalidades) e Regra RNF-SEG-03 de Votação Única
-  const toggleVote = useCallback((pedidoId, explicitUserId = null) => {
-    const userId = explicitUserId || currentUser?.id || 'usr-po-01'
+  const loadDemoData = useCallback(() => {
+    dataSourceRef.current = 'demo'
+    setPedidos(DEMO_PEDIDOS)
+    setStories(DEMO_STORIES)
+    setSprints(DEMO_SPRINTS)
+    setRoadmap(DEMO_ROADMAP)
+    setNotifications(DEMO_NOTIFICATIONS)
+    setUsers(DEMO_USERS)
+    setLogs(DEMO_LOGS)
+    setError('')
+  }, [])
 
-    setPedidos((prevPedidos) =>
-      prevPedidos.map((item) => {
-        if (item.id !== pedidoId) return item
+  const appendDemoLog = useCallback((action, resource, details = null) => {
+    setLogs((prev) => [
+      {
+        id: `log-${Date.now()}`,
+        action,
+        resource,
+        details,
+        timestamp: new Date().toISOString(),
+        userId: currentUser?.id || 'usr-sys',
+        userName: currentUser?.name || 'Sistema',
+        userRole: getRoleCode(currentUser?.role),
+      },
+      ...prev,
+    ])
+  }, [currentUser])
 
-        const alreadyVoted = item.votedBy?.includes(userId)
-        let nextVotedBy
-        let nextVoteCount
+  const currentUserRole = currentUser?.role
 
-        if (alreadyVoted) {
-          // Remover voto (RNF-SEG-03: toggle unvote)
-          nextVotedBy = item.votedBy.filter((uid) => uid !== userId)
-          nextVoteCount = Math.max(0, item.voteCount - 1)
-        } else {
-          // Adicionar voto (RNF-SEG-03: no máximo 1 voto por utilizador)
-          nextVotedBy = [...(item.votedBy || []), userId]
-          nextVoteCount = item.voteCount + 1
-        }
+  const reload = useCallback(async () => {
+    if (!getToken()) {
+      if (dataSourceRef.current === 'api') {
+        loadDemoData()
+      }
+      return
+    }
+    dataSourceRef.current = 'api'
+    setLoading(true)
+    setError('')
+    try {
+      const canReadInternal = currentUserRole !== ROLES.CLIENT
+      const results = await Promise.allSettled([
+        apiRequest('/pedidos'),
+        apiRequest('/user-stories'),
+        apiRequest('/sprints'),
+        apiRequest('/roadmap'),
+        apiRequest('/notifications'),
+        apiRequest('/users'),
+        canReadInternal ? apiRequest('/analytics') : Promise.resolve([]),
+      ])
+      const valueAt = (index) => (results[index]?.status === 'fulfilled' && Array.isArray(results[index].value) ? results[index].value : [])
+      const apiPedidos = valueAt(0)
+      const apiStories = valueAt(1)
+      const apiSprints = valueAt(2)
+      const apiRoadmap = valueAt(3)
+      const apiNotifications = valueAt(4)
+      const apiUsers = valueAt(5)
+      const apiLogs = valueAt(6)
 
-        return {
-          ...item,
-          voteCount: nextVoteCount,
-          votedBy: nextVotedBy,
-        }
+      const normalizedUsers = apiUsers.map(normalizeUserRecord)
+      setPedidos(apiPedidos.map(normalizePedidoRecord))
+      setStories(apiStories.map((story) => ({
+        id: story.codigoUs,
+        backendId: story.idTarefa,
+        title: story.titulo,
+        description: story.descricao,
+        acceptanceCriteria: typeof story.criteriosAceitacao === 'string'
+          ? story.criteriosAceitacao.split('\n').map((line) => line.trim()).filter(Boolean)
+          : [],
+        target: story.sprint?.numeroSprint ? `Sprint ${story.sprint.numeroSprint}` : 'Backlog do produto',
+        sprint: story.idSprint ? `sprint-${story.sprint?.numeroSprint || story.idSprint}` : null,
+        sprintId: story.idSprint || null,
+        status: STORY_STATUS[story.estadoTecnico] || 'todo',
+        backendStatus: story.estadoTecnico,
+        priority: 'Média',
+        points: story.storyPoints || null,
+        effort: story.tempoRegistado || null,
+        assignee: story.responsavel ? {
+          name: story.responsavel.nome,
+          initials: story.responsavel.nome.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+          role: getRoleLabel(story.responsavel.papel),
+        } : null,
+        impediment: story.estadoTecnico === 'BLOQUEADO',
+        linkedPedidoId: story.idPedido,
+        pedidoCode: story.pedido?.idPedido,
+        releaseId: story.idRelease,
+        createdAt: story.dataCriacao,
+      })))
+      setSprints(apiSprints)
+      setRoadmap(apiRoadmap)
+      setNotifications(apiNotifications.map((notification) => ({
+        id: notification.idNotificacao,
+        title: notification.tipo,
+        description: notification.mensagem,
+        category: notification.tipo?.toLowerCase() || 'decisoes',
+        read: notification.lida,
+        createdAt: notification.dataCriacao,
+        timeGroup: 'RECENTES',
+        timestamp: notification.dataCriacao
+          ? new Date(notification.dataCriacao).toLocaleDateString('pt-PT')
+          : 'Agora',
+        refCode: notification.idPedido || 'GIRO',
+        assignee: notification.utilizador?.nome || 'Equipa',
+        author: notification.utilizador ? { name: notification.utilizador.nome, initials: notification.utilizador.nome.slice(0, 2).toUpperCase() } : null,
+      })))
+      setUsers(normalizedUsers)
+      setLogs(canReadInternal ? apiLogs.map((entry) => normalizeLogRecord(entry, normalizedUsers)) : [])
+    } catch (loadError) {
+      setError(loadError.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [currentUserRole, loadDemoData])
+
+  useEffect(() => {
+    queueMicrotask(() => reload())
+  }, [currentUser, reload])
+
+  const findSimilarPedidos = useCallback(async (query) => {
+    const q = String(query || '').trim()
+    if (q.length < 3) return []
+
+    if (getToken()) {
+      try {
+        const res = await apiRequest(`/pedidos/semelhantes?q=${encodeURIComponent(q)}`)
+        const list = Array.isArray(res) ? res : res?.items || res?.results || res?.pedidos || []
+        return list.map((item) => ({
+          ...normalizePedidoRecord(item),
+          similarity: item.similarity ?? item.score ?? null,
+        }))
+      } catch {
+        // Fallback para pesquisa local por trigramas caso a rota não esteja disponível
+      }
+    }
+
+    return pedidos
+      .map((pedido) => ({
+        ...pedido,
+        similarity: computeSimilarityScore(q, `${pedido.title} ${pedido.description} ${(pedido.tags || []).join(' ')}`),
+      }))
+      .filter((item) => item.similarity >= 0.22)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 5)
+  }, [pedidos])
+
+  const toggleVote = useCallback(async (pedidoId) => {
+    if (getToken()) {
+      const result = await apiRequest(`/pedidos/${pedidoId}/votos`, { method: 'POST' })
+      await reload()
+      return result
+    }
+
+    const voterId = currentUser?.id || 'usr-demo'
+    let votedState = false
+    setPedidos((prev) =>
+      prev.map((pedido) => {
+        if (pedido.id !== pedidoId) return pedido
+        const currentVotes = Array.isArray(pedido.votedBy) ? pedido.votedBy : []
+        const alreadyVoted = currentVotes.includes(voterId)
+        votedState = !alreadyVoted
+        const nextVotedBy = alreadyVoted
+          ? currentVotes.filter((id) => id !== voterId)
+          : [...currentVotes, voterId]
+        const nextCount = alreadyVoted
+          ? Math.max(0, (pedido.voteCount || 0) - 1)
+          : (pedido.voteCount || 0) + 1
+        return { ...pedido, votedBy: nextVotedBy, voteCount: nextCount }
       })
     )
-  }, [currentUser])
+    appendDemoLog(votedState ? 'VOTO_REGISTADO' : 'VOTO_REMOVIDO', `Pedido/${pedidoId}`, { voterId })
+    return { voted: votedState }
+  }, [appendDemoLog, currentUser?.id, reload])
 
-  const addPedido = useCallback((newPedidoData) => {
-    const creatorUser = currentUser || {
-      name: 'Sofia Costa',
-      role: 'Product Owner',
-      initials: 'SC',
-      id: 'usr-po-01',
+  const addPedido = useCallback(async (data) => {
+    if (getToken()) {
+      const pedido = await apiRequest('/pedidos', {
+        method: 'POST',
+        body: JSON.stringify({
+          titulo: data.title,
+          descricao: data.description,
+          categoria: data.category,
+          tags: data.tags,
+        }),
+      })
+      await reload()
+      return pedido
     }
 
-    setPedidos((prev) => {
-      const nextNum = prev.length + 1
-      const nextId = `PED-${String(nextNum).padStart(2, '0')}`
+    const newId = `PED-${String(pedidos.length + 1).padStart(2, '0')}`
+    const created = {
+      id: newId,
+      title: data.title,
+      description: data.description,
+      category: data.category || 'NOVA_FUNCIONALIDADE',
+      status: 'pending',
+      backendStatus: 'SUBMETIDO',
+      effort: null,
+      impact: null,
+      voteCount: 1,
+      votedBy: [currentUser?.id || 'usr-demo'],
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      createdAt: new Date().toISOString(),
+      author: {
+        name: currentUser?.name || 'Utilizador Demo',
+        role: getRoleCode(currentUser?.role),
+        avatar: currentUser?.initials || 'UD',
+      },
+      linkedStoryId: null,
+      aiRecommendation: null,
+      aiConfidence: null,
+      comments: [],
+      history: [],
+    }
+    setPedidos((prev) => [created, ...prev])
+    appendDemoLog('PEDIDO_CRIADO', `Pedido/${newId}`, { categoria: created.category })
+    return created
+  }, [appendDemoLog, currentUser, pedidos.length, reload])
 
-      const createdItem = {
-        id: nextId,
-        title: newPedidoData.title || 'Novo Pedido',
-        description: newPedidoData.description || '',
-        category: newPedidoData.category || 'NOVA_FUNCIONALIDADE',
-        status: newPedidoData.status || 'pending', // padrão: Por analisar
-        voteCount: 1, // criador já inicia com voto
-        votedBy: [creatorUser.id],
-        tags: Array.isArray(newPedidoData.tags)
-          ? newPedidoData.tags
-          : typeof newPedidoData.tags === 'string' && newPedidoData.tags.trim()
-          ? newPedidoData.tags.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)
-          : ['geral'],
-        createdAt: new Date().toISOString(),
-        author: {
-          name: creatorUser.name,
-          role: creatorUser.role,
-          avatar: creatorUser.initials || 'SC',
-        },
-        linkedStoryId: null,
-      }
+  const updatePedidoStatus = useCallback(async (pedidoId, status) => {
+    const backendEstado = BACKEND_PEDIDO_STATUS[status] || 'SUBMETIDO'
+    if (getToken()) {
+      await apiRequest(`/pedidos/${pedidoId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ estado: backendEstado }),
+      })
+      await reload()
+      return
+    }
 
-      return [createdItem, ...prev]
-    })
-  }, [currentUser])
-
-  const updatePedidoStatus = useCallback((pedidoId, newStatus) => {
     setPedidos((prev) =>
-      prev.map((p) => (p.id === pedidoId ? { ...p, status: newStatus } : p))
+      prev.map((pedido) =>
+        pedido.id === pedidoId
+          ? { ...pedido, status, backendStatus: backendEstado }
+          : pedido
+      )
     )
-  }, [])
-
-  // 2. User Stories / Backlog / Sprint
-  const addStory = useCallback((newStoryData) => {
-    setStories((prev) => {
-      const nextNum = prev.length + 1
-      const nextId = `US-${String(nextNum + 30).padStart(2, '0')}`
-
-      const createdStory = {
-        id: nextId,
-        title: newStoryData.title || 'Nova User Story',
-        description: newStoryData.description || '',
-        acceptanceCriteria: Array.isArray(newStoryData.acceptanceCriteria)
-          ? newStoryData.acceptanceCriteria
-          : typeof newStoryData.acceptanceCriteria === 'string'
-          ? newStoryData.acceptanceCriteria.split('\n').map((l) => l.trim()).filter(Boolean)
-          : [],
-        target: newStoryData.target || 'Backlog do produto',
-        sprint: newStoryData.target === 'Sprint 12' ? 'sprint-12' : null,
-        status: newStoryData.status || 'todo',
-        priority: newStoryData.priority || 'Média',
-        points: typeof newStoryData.points === 'number'
-          ? newStoryData.points
-          : !isNaN(parseInt(newStoryData.points, 10))
-          ? parseInt(newStoryData.points, 10)
-          : 3,
-        assignee: newStoryData.assignee || {
-          name: currentUser?.name || 'Sofia Costa',
-          initials: currentUser?.initials || 'SC',
-          role: currentUser?.role || 'Product Owner',
-        },
-        impediment: newStoryData.impediment || null,
-        linkedPedidoId: newStoryData.linkedPedidoId || null,
+    setNotifications((prev) => [
+      {
+        id: `notif-${Date.now()}`,
+        title: `Estado atualizado em ${pedidoId}`,
+        description: `${currentUser?.name || 'Equipa'} alterou o estado de ${pedidoId} para ${backendEstado}.`,
+        category: 'decisoes',
+        read: false,
         createdAt: new Date().toISOString(),
-      }
-
-      return [createdStory, ...prev]
-    })
-  }, [currentUser])
-
-  const moveStory = useCallback((storyId, newStatus) => {
-    setStories((prev) =>
-      prev.map((s) => (s.id === storyId ? { ...s, status: newStatus } : s))
-    )
-  }, [])
-
-  const updateStory = useCallback((storyId, partialData) => {
-    setStories((prev) =>
-      prev.map((s) => (s.id === storyId ? { ...s, ...partialData } : s))
-    )
-  }, [])
-
-  // 3. Canais e Mensagens de Equipa
-  const addMessage = useCallback((channelId, messageContent) => {
-    const sender = {
-      name: currentUser?.name || 'Sofia Costa',
-      role: currentUser?.role || 'Product Owner',
-      initials: currentUser?.initials || 'SC',
-    }
-
-    const newMessage = {
-      id: `msg-${Date.now()}`,
-      sender,
-      content: typeof messageContent === 'string' ? messageContent : messageContent.content,
-      timestamp: 'Agora mesmo',
-    }
-
-    setMessages((prev) => ({
+        timeGroup: 'HOJE',
+        timestamp: 'Agora',
+        refCode: pedidoId,
+        assignee: currentUser?.name || 'Equipa',
+        author: { name: currentUser?.name || 'Equipa', initials: currentUser?.initials || 'EQ' },
+      },
       ...prev,
-      [channelId]: [...(prev[channelId] || []), newMessage],
-    }))
+    ])
+    appendDemoLog('ALTERACAO_ESTADO', `Pedido/${pedidoId}`, { estado: backendEstado })
+  }, [appendDemoLog, currentUser, reload])
+
+  const deletePedido = useCallback(async (pedidoId) => {
+    if (getToken()) {
+      await apiRequest(`/pedidos/${pedidoId}`, { method: 'DELETE' })
+      await reload()
+      return
+    }
+
+    const target = pedidos.find((p) => p.id === pedidoId)
+    if (!target) throw new Error('Pedido não encontrado.')
+    if (['approved', 'planned', 'development', 'complete'].includes(target.status)) {
+      throw new Error('Pedidos aprovados ou em execução não podem ser eliminados (CA2.3).')
+    }
+    setPedidos((prev) => prev.filter((p) => p.id !== pedidoId))
+    appendDemoLog('PEDIDO_ELIMINADO', `Pedido/${pedidoId}`)
+  }, [appendDemoLog, pedidos, reload])
+
+  const addComment = useCallback(async (pedidoId, content) => {
+    const trimmed = String(content || '').trim()
+    if (!trimmed) {
+      throw new Error('O comentário não pode estar vazio.')
+    }
+
+    if (getToken()) {
+      const created = await apiRequest(`/pedidos/${pedidoId}/comentarios`, {
+        method: 'POST',
+        body: JSON.stringify({ conteudo: trimmed }),
+      })
+      await reload()
+      return normalizeCommentRecord(created)
+    }
+
+    const newComment = {
+      id: `cmt-${Date.now()}`,
+      content: trimmed,
+      createdAt: new Date().toISOString(),
+      authorName: currentUser?.name || 'Utilizador',
+      authorRole: getRoleCode(currentUser?.role),
+    }
+    setPedidos((prev) =>
+      prev.map((pedido) =>
+        pedido.id === pedidoId
+          ? { ...pedido, comments: [...(pedido.comments || []), newComment] }
+          : pedido
+      )
+    )
+    appendDemoLog('COMENTARIO_CRIADO', `Pedido/${pedidoId}`)
+    return newComment
+  }, [appendDemoLog, currentUser, reload])
+
+  const requestAiPrioritization = useCallback(async (pedidoId) => {
+    const targetPedido = pedidos.find((p) => p.id === pedidoId)
+    const fallbackHeuristic = computeLocalHeuristicPrioritization(targetPedido)
+
+    if (getToken()) {
+      try {
+        const result = await apiRequest(`/pedidos/${pedidoId}/ia-priorizacao`, {
+          method: 'POST',
+        })
+        if (result?.available === false) {
+          return {
+            available: false,
+            fallback: true,
+            message: result.message || 'Serviço de IA indisponível no momento. Pode continuar a triagem manual.',
+            ...fallbackHeuristic,
+          }
+        }
+
+        const impact = result?.impactoNegocio ?? result?.impact ?? fallbackHeuristic.impact
+        const effort = result?.esforcoEstimado ?? result?.effort ?? fallbackHeuristic.effort
+        const recommendation = result?.recomendacao || result?.recommendation || fallbackHeuristic.recommendation
+        const confidence = result?.confianca || result?.confidence || 'Sugestão Gemini AI (PII sanitizado)'
+
+        setPedidos((prev) =>
+          prev.map((pedido) =>
+            pedido.id === pedidoId
+              ? {
+                  ...pedido,
+                  impact,
+                  effort,
+                  aiRecommendation: recommendation,
+                  aiConfidence: confidence,
+                }
+              : pedido
+          )
+        )
+        return {
+          available: true,
+          piiSanitized: true,
+          impact,
+          effort,
+          recommendation,
+          confidence,
+          quadrant: result?.quadrante || fallbackHeuristic.quadrant,
+        }
+      } catch (aiError) {
+        return {
+          available: false,
+          fallback: true,
+          message: aiError?.message || 'Serviço de IA temporariamente indisponível. Contingência manual ativa.',
+          ...fallbackHeuristic,
+        }
+      }
+    }
+
+    setPedidos((prev) =>
+      prev.map((pedido) =>
+        pedido.id === pedidoId
+          ? {
+              ...pedido,
+              impact: fallbackHeuristic.impact,
+              effort: fallbackHeuristic.effort,
+              aiRecommendation: fallbackHeuristic.recommendation,
+              aiConfidence: fallbackHeuristic.confidence,
+            }
+          : pedido
+      )
+    )
+    appendDemoLog('PRIORIZACAO_IA', `Pedido/${pedidoId}`, {
+      piiSanitized: true,
+      quadrante: fallbackHeuristic.quadrant,
+    })
+
+    return {
+      available: true,
+      ...fallbackHeuristic,
+    }
+  }, [appendDemoLog, pedidos])
+
+  const updateUserRoleOrStatus = useCallback(async (userId, payload) => {
+    const body = {}
+    if (payload.papel !== undefined || payload.role !== undefined) {
+      body.papel = getRoleCode(payload.papel ?? payload.role)
+    }
+    if (payload.ativo !== undefined || payload.active !== undefined) {
+      body.ativo = Boolean(payload.ativo ?? payload.active)
+    }
+
+    if (getToken()) {
+      const updated = await apiRequest(`/users/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+      await reload()
+      return normalizeUserRecord(updated)
+    }
+
+    if (currentUser?.role !== ROLES.ADMIN && currentUser?.roleCode !== ROLE_CODES.ADMIN) {
+      throw new Error('Permissão insuficiente (HTTP 403): apenas o Administrador do Sistema pode alterar papéis ou estado de conta.')
+    }
+
+    let updatedUser = null
+    setUsers((prev) =>
+      prev.map((user) => {
+        if (user.id !== userId) return user
+        const nextRoleCode = body.papel || user.roleCode
+        const nextRoleKey = normalizeRoleKey(nextRoleCode)
+        updatedUser = {
+          ...user,
+          role: nextRoleKey,
+          roleCode: nextRoleCode,
+          active: body.ativo !== undefined ? body.ativo : user.active,
+          scope: ROLE_SCOPE_MAP[nextRoleKey] || user.scope,
+        }
+        return updatedUser
+      })
+    )
+    appendDemoLog('ATUALIZACAO_PERMISSOES', `Utilizador/${userId}`, body)
+    return updatedUser
+  }, [appendDemoLog, currentUser, reload])
+
+  const addStory = useCallback(async (data) => {
+    if (getToken()) {
+      if (!data.linkedPedidoId) throw new Error('Associe a User Story a um pedido aprovado.')
+      const matchedSprint = sprints.find(
+        (sp) => `Sprint ${sp.numeroSprint}` === data.target || sp.idSprint === data.sprint
+      )
+      const result = await apiRequest('/user-stories', {
+        method: 'POST',
+        body: JSON.stringify({
+          codigoUs: data.code || `US${String(Date.now()).slice(-4)}`,
+          titulo: data.title,
+          descricao: data.description,
+          criteriosAceitacao: Array.isArray(data.acceptanceCriteria)
+            ? data.acceptanceCriteria.join('\n')
+            : data.acceptanceCriteria || 'Critérios de aceitação validados pelo Product Owner.',
+          storyPoints: data.points || undefined,
+          idPedido: data.linkedPedidoId,
+          idSprint: matchedSprint?.idSprint || undefined,
+        }),
+      })
+      await reload()
+      return result
+    }
+
+    const nextCode = data.code || `US-${46 + stories.length}`
+    const targetLabel = data.target || 'Backlog do produto'
+    const isSprint12 = targetLabel === 'Sprint 12' || data.sprint === 'sprint-12'
+    const newStory = {
+      id: nextCode,
+      backendId: `demo-${Date.now()}`,
+      title: data.title,
+      description: data.description,
+      acceptanceCriteria: Array.isArray(data.acceptanceCriteria)
+        ? data.acceptanceCriteria
+        : String(data.acceptanceCriteria || 'Critérios de aceitação definidos pelo PO')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean),
+      target: targetLabel,
+      sprint: isSprint12 ? 'sprint-12' : null,
+      status: 'todo',
+      backendStatus: isSprint12 ? 'TODO' : 'BACKLOG',
+      priority: data.priority || 'Média',
+      points: data.points || 3,
+      effort: 0,
+      assignee: data.assignee || null,
+      impediment: false,
+      linkedPedidoId: data.linkedPedidoId || null,
+      pedidoCode: data.linkedPedidoId || null,
+      epic: 'EP02: Backlog & IA',
+    }
+    setStories((prev) => [newStory, ...prev])
+    if (data.linkedPedidoId) {
+      setPedidos((prev) =>
+        prev.map((p) => (p.id === data.linkedPedidoId ? { ...p, linkedStoryId: nextCode } : p))
+      )
+    }
+    appendDemoLog('USER_STORY_CRIADA', `UserStory/${nextCode}`, { linkedPedidoId: data.linkedPedidoId })
+    return newStory
+  }, [appendDemoLog, reload, sprints, stories.length])
+
+  const moveStory = useCallback(async (storyId, status) => {
+    const story = stories.find((item) => item.id === storyId)
+    if (!story) throw new Error('User Story não encontrada')
+
+    const backendEstado = BACKEND_STORY_STATUS[status] || 'TODO'
+    if (getToken()) {
+      if (!story.backendId) throw new Error('User Story não encontrada')
+      await apiRequest(`/user-stories/${story.backendId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ estadoTecnico: backendEstado }),
+      })
+      await reload()
+      return
+    }
+
+    setStories((prev) =>
+      prev.map((item) =>
+        item.id === storyId
+          ? { ...item, status, backendStatus: backendEstado, impediment: status === 'blocked' ? item.impediment : false }
+          : item
+      )
+    )
+    appendDemoLog('TRANSICAO_KANBAN', `UserStory/${storyId}`, { estadoTecnico: backendEstado })
+  }, [appendDemoLog, reload, stories])
+
+  const updateStory = useCallback(async (storyId, data) => {
+    const story = stories.find((item) => item.id === storyId)
+    if (!story) throw new Error('User Story não encontrada')
+
+    if (getToken()) {
+      if (!story.backendId) throw new Error('User Story não encontrada')
+      const payload = { ...data }
+      if ('target' in payload || 'sprint' in payload) {
+        const matchedSprint = sprints.find(
+          (sp) => `Sprint ${sp.numeroSprint}` === payload.target || `sprint-${sp.numeroSprint}` === payload.sprint
+        )
+        payload.idSprint = matchedSprint ? matchedSprint.idSprint : null
+        delete payload.target
+        delete payload.sprint
+      }
+      await apiRequest(`/user-stories/${story.backendId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      })
+      await reload()
+      return
+    }
+
+    setStories((prev) =>
+      prev.map((item) => (item.id === storyId ? { ...item, ...data } : item))
+    )
+    appendDemoLog('USER_STORY_ATUALIZADA', `UserStory/${storyId}`, data)
+  }, [appendDemoLog, reload, sprints, stories])
+
+  const addMessage = useCallback((channelId, content) => {
+    const trimmed = String(content || '').trim()
+    if (!trimmed) {
+      throw new Error('Escreva uma mensagem antes de enviar.')
+    }
+    const targetChannel = channelId || 'geral'
+    const roleKey = currentUser?.role || ROLES.PRODUCT_OWNER
+    const created = {
+      id: `msg-${Date.now()}`,
+      channelId: targetChannel,
+      author: {
+        name: currentUser?.name || 'Sofia Costa',
+        initials: currentUser?.initials || 'SC',
+        role: roleKey,
+        roleLabel: getRoleLabel(roleKey),
+      },
+      content: trimmed,
+      createdAt: new Date().toISOString(),
+    }
+
+    setMessages((prev) => {
+      const next = {
+        ...prev,
+        [targetChannel]: [...(prev[targetChannel] || []), created],
+      }
+      try {
+        sessionStorage.setItem(SESSION_MESSAGES_KEY, JSON.stringify(next))
+      } catch {
+        // ignore storage errors
+      }
+      return next
+    })
+
+    return created
   }, [currentUser])
 
-  // 4. Notificações
-  const markNotificationAsRead = useCallback((notifId) => {
+  const markNotificationAsRead = useCallback(async (notificationId) => {
+    if (getToken()) {
+      await apiRequest(`/notifications/${notificationId}`, { method: 'PATCH', body: JSON.stringify({ lida: true }) })
+      await reload()
+      return
+    }
     setNotifications((prev) =>
-      prev.map((n) => (n.id === notifId ? { ...n, read: true } : n))
+      prev.map((item) => (item.id === notificationId ? { ...item, read: true } : item))
     )
-  }, [])
+  }, [reload])
 
-  const markAllNotificationsAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-  }, [])
+  const markAllNotificationsAsRead = useCallback(async () => {
+    if (getToken()) {
+      await Promise.all(
+        notifications
+          .filter((item) => !item.read)
+          .map((item) => apiRequest(`/notifications/${item.id}`, { method: 'PATCH', body: JSON.stringify({ lida: true }) }))
+      )
+      await reload()
+      return
+    }
+    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })))
+  }, [notifications, reload])
 
-  // Contagem de notificações não lidas
-  const unreadNotificationsCount = useMemo(() => {
-    return notifications.filter((n) => !n.read).length
-  }, [notifications])
+  const unreadNotificationsCount = useMemo(() => notifications.filter((item) => !item.read).length, [notifications])
+
+  const sprintStories = useMemo(() => stories.filter((story) => story.sprint), [stories])
+  const backlogStories = useMemo(() => stories.filter((story) => !story.sprint), [stories])
+
+  const visibleLogs = useMemo(() => {
+    if (currentUser?.role === ROLES.CLIENT) return []
+    return logs
+  }, [currentUser?.role, logs])
+
+  const derivedTraceability = useMemo(() => {
+    if (!pedidos.length) return []
+    return pedidos.map((pedido) => {
+      const linkedStories = stories.filter(
+        (story) => story.linkedPedidoId === pedido.id || story.id === pedido.linkedStoryId
+      )
+      const firstStory = linkedStories[0] || null
+      const tests = linkedStories.flatMap((story) =>
+        (story.acceptanceCriteria || []).map((_, idx) => ({
+          id: `TC-${story.id}-${idx + 1}`,
+          status: story.status === 'done' ? 'pass' : 'pending',
+        }))
+      )
+      const status = linkedStories.length === 0
+        ? 'untracked'
+        : linkedStories.every((story) => story.status === 'done')
+        ? 'tracked'
+        : 'partially_tracked'
+
+      return {
+        id: pedido.id,
+        code: firstStory?.id || 'SEM_USER_STORY',
+        title: pedido.title,
+        description: pedido.description,
+        category: pedido.category,
+        originPedido: pedido.id,
+        status,
+        stories: linkedStories.map((story) => ({ id: story.id, title: story.title })),
+        tests,
+        gitBranch: firstStory ? `feature/${firstStory.id.toLowerCase()}` : '—',
+        commit: firstStory?.status === 'done' ? 'verified' : '—',
+        criteria: linkedStories.flatMap((story) => story.acceptanceCriteria || []).join(' · ') || 'Ainda sem critérios de aceitação associados.',
+        codeRefs: firstStory ? [`src/pages/SprintKanbanPage.jsx (${firstStory.id})`] : [],
+        coveragePercentage: status === 'tracked' ? 100 : status === 'partially_tracked' ? 60 : 0,
+        notes: firstStory ? 'Ligação persistida entre pedido e User Story.' : 'Pedido ainda sem User Story associada.',
+      }
+    })
+  }, [pedidos, stories])
+
+  const effectiveTraceability = traceability.length ? traceability : derivedTraceability
 
   const value = {
-    // Pedidos
     pedidos,
-    addPedido,
-    toggleVote,
-    updatePedidoStatus,
-
-    // Stories
     stories,
-    sprintStories: stories.filter((s) => s.sprint === 'sprint-12'),
-    backlogStories: stories.filter((s) => !s.sprint),
+    sprints,
+    roadmap,
+    users,
+    logs: visibleLogs,
+    traceability: effectiveTraceability,
+    channels,
+    messages,
+    notifications,
+    loading,
+    error,
+    reload,
+    sprintStories,
+    backlogStories,
+    unreadNotificationsCount,
+    findSimilarPedidos,
+    toggleVote,
+    addPedido,
+    updatePedidoStatus,
+    deletePedido,
+    addComment,
+    requestAiPrioritization,
+    updateUserRoleOrStatus,
     addStory,
     moveStory,
     updateStory,
-
-    // Rastreabilidade
-    traceability,
-    setTraceability,
-
-    // Canais e Mensagens
-    channels,
-    messages,
     addMessage,
-
-    // Notificações
-    notifications,
-    unreadNotificationsCount,
     markNotificationAsRead,
     markAllNotificationsAsRead,
+    setTraceability,
   }
 
-  return (
-    <DataContext.Provider value={value}>
-      {children}
-    </DataContext.Provider>
-  )
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }
 
 export function useData() {
   const context = useContext(DataContext)
-  if (!context) {
-    throw new Error('useData deve ser utilizado dentro de um <DataProvider>')
-  }
+  if (!context) throw new Error('useData deve ser utilizado dentro de um <DataProvider>')
   return context
 }
 

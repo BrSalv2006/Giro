@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PapelUtilizador {
+  P01
+  P02
+  P03
+  P04
+  P05
+}
+
+enum EstadoPedido {
+  SUBMETIDO
+  EM_ANALISE
+  APROVADO
+  PLANEADO
+  EM_DESENVOLVIMENTO
+  CONCLUIDO
+  REJEITADO
+}
+
+enum TipoNotificacao {
+  ALTERACAO_ESTADO
+  NOVO_COMENTARIO
+  NOVO_VOTO
+  ATRIBUICAO
+  ALERTA
+}
+
+enum EstadoSprint {
+  PLANEADO
+  ATIVO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum EstadoTecnico {
+  BACKLOG
+  TODO
+  EM_PROGRESSO
+  EM_REVISAO
+  CONCLUIDO
+  BLOQUEADO
+}
+
+enum TipoDependencia {
+  PRECEDE
+  BLOQUEIA
+  RELACIONADA
+}
+
+model Utilizador {
+  idUtilizador   String             @id @default(uuid()) @map("id_utilizador") @db.Uuid
+  nome           String
+  email          String             @unique
+  passwordHash   String             @map("password_hash")
+  papel          PapelUtilizador
+  ativo          Boolean            @default(true)
+  dataRegisto    DateTime           @default(now()) @map("data_registo")
+  pedidos        Pedido[]           @relation("AutorPedido")
+  historicoEditado HistoricoPedido[] @relation("EditorHistorico")
+  votos          Voto[]
+  comentarios    Comentario[]
+  notificacoes   Notificacao[]
+  logs           Log[]
+  userStories    UserStory[]        @relation("ResponsavelUserStory")
+}
+
+model Pedido {
+  idPedido          String             @id @default(uuid()) @map("id_pedido") @db.Uuid
+  titulo            String
+  descricao         String
+  categoria         String
+  tags              String[]           @default([])
+  estado            EstadoPedido       @default(SUBMETIDO)
+  esforcoEstimado   Int?               @map("esforco_estimado")
+  impactoNegocio    Int?               @map("impacto_negocio")
+  dataCriacao       DateTime           @default(now()) @map("data_criacao")
+  idAutor           String             @map("id_autor") @db.Uuid
+  autor             Utilizador         @relation("AutorPedido", fields: [idAutor], references: [idUtilizador], onDelete: Restrict, onUpdate: Cascade)
+  historico         HistoricoPedido[]
+  votos             Voto[]
+  comentarios       Comentario[]
+  notificacoes      Notificacao[]
+  userStories       UserStory[]
+
+  @@index([idAutor])
+  @@index([estado])
+}
+
+model HistoricoPedido {
+  idHistorico       String       @id @default(uuid()) @map("id_historico") @db.Uuid
+  tituloAnterior    String?      @map("titulo_anterior")
+  descricaoAnterior String?      @map("descricao_anterior")
+  categoriaAnterior String?      @map("categoria_anterior")
+  estadoAnterior    EstadoPedido? @map("estado_anterior")
+  dataAlteracao     DateTime     @default(now()) @map("data_alteracao")
+  idPedido          String       @map("id_pedido") @db.Uuid
+  idEditor          String       @map("id_editor") @db.Uuid
+  pedido            Pedido       @relation(fields: [idPedido], references: [idPedido], onDelete: Cascade, onUpdate: Cascade)
+  editor            Utilizador   @relation("EditorHistorico", fields: [idEditor], references: [idUtilizador], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([idPedido, dataAlteracao])
+  @@index([idEditor])
+}
+
+model Voto {
+  idVoto         String     @id @default(uuid()) @map("id_voto") @db.Uuid
+  dataVoto       DateTime   @default(now()) @map("data_voto")
+  idUtilizador   String     @map("id_utilizador") @db.Uuid
+  idPedido       String     @map("id_pedido") @db.Uuid
+  utilizador     Utilizador @relation(fields: [idUtilizador], references: [idUtilizador], onDelete: Cascade, onUpdate: Cascade)
+  pedido         Pedido     @relation(fields: [idPedido], references: [idPedido], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([idUtilizador, idPedido])
+  @@index([idPedido])
+}
+
+model Comentario {
+  idComentario  String     @id @default(uuid()) @map("id_comentario") @db.Uuid
+  conteudo      String
+  dataCriacao   DateTime   @default(now()) @map("data_criacao")
+  idUtilizador  String     @map("id_utilizador") @db.Uuid
+  idPedido      String     @map("id_pedido") @db.Uuid
+  utilizador    Utilizador @relation(fields: [idUtilizador], references: [idUtilizador], onDelete: Restrict, onUpdate: Cascade)
+  pedido        Pedido     @relation(fields: [idPedido], references: [idPedido], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([idPedido, dataCriacao])
+  @@index([idUtilizador])
+}
+
+model Notificacao {
+  idNotificacao String            @id @default(uuid()) @map("id_notificacao") @db.Uuid
+  tipo          TipoNotificacao
+  mensagem      String
+  lida          Boolean           @default(false)
+  dataCriacao   DateTime          @default(now()) @map("data_criacao")
+  idUtilizador  String            @map("id_utilizador") @db.Uuid
+  idPedido      String?           @map("id_pedido") @db.Uuid
+  utilizador    Utilizador        @relation(fields: [idUtilizador], references: [idUtilizador], onDelete: Cascade, onUpdate: Cascade)
+  pedido        Pedido?           @relation(fields: [idPedido], references: [idPedido], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([idUtilizador, lida])
+  @@index([idPedido])
+}
+
+model Log {
+  idLog         String     @id @default(uuid()) @map("id_log") @db.Uuid
+  acao          String
+  recurso       String
+  detalhes      Json?
+  dataHora      DateTime   @default(now()) @map("data_hora")
+  idUtilizador  String     @map("id_utilizador") @db.Uuid
+  utilizador    Utilizador @relation(fields: [idUtilizador], references: [idUtilizador], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([idUtilizador, dataHora])
+  @@index([recurso])
+}
+
+model Sprint {
+  idSprint        String       @id @default(uuid()) @map("id_sprint") @db.Uuid
+  numeroSprint    Int          @unique @map("numero_sprint")
+  dataInicio     DateTime     @map("data_inicio")
+  dataFim        DateTime     @map("data_fim")
+  capacidadeMaxima Int?       @map("capacidade_maxima")
+  estado          EstadoSprint @default(PLANEADO)
+  userStories     UserStory[]
+
+  @@index([estado])
+}
+
+model RoadmapRelease {
+  idRelease       String      @id @default(uuid()) @map("id_release") @db.Uuid
+  tituloRelease   String      @map("titulo_release")
+  descricao       String?
+  dataInicio      DateTime    @map("data_inicio")
+  dataFim         DateTime    @map("data_fim")
+  marcoCritico    Boolean     @default(false) @map("marco_critico")
+  userStories     UserStory[]
+
+  @@index([dataInicio, dataFim])
+}
+
+model UserStory {
+  idTarefa          String          @id @default(uuid()) @map("id_tarefa") @db.Uuid
+  codigoUs          String          @unique @map("codigo_us")
+  titulo            String
+  descricao         String
+  criteriosAceitacao String         @map("criterios_aceitacao")
+  estadoTecnico     EstadoTecnico   @default(BACKLOG) @map("estado_tecnico")
+  storyPoints       Int?            @map("story_points")
+  tempoRegistado    Int?            @map("tempo_registado")
+  idPedido          String          @map("id_pedido") @db.Uuid
+  idSprint          String?         @map("id_sprint") @db.Uuid
+  idResponsavel     String?         @map("id_responsavel") @db.Uuid
+  idRelease         String?         @map("id_release") @db.Uuid
+  pedido            Pedido          @relation(fields: [idPedido], references: [idPedido], onDelete: Cascade, onUpdate: Cascade)
+  sprint            Sprint?         @relation(fields: [idSprint], references: [idSprint], onDelete: SetNull, onUpdate: Cascade)
+  responsavel       Utilizador?     @relation("ResponsavelUserStory", fields: [idResponsavel], references: [idUtilizador], onDelete: SetNull, onUpdate: Cascade)
+  release           RoadmapRelease? @relation(fields: [idRelease], references: [idRelease], onDelete: SetNull, onUpdate: Cascade)
+  dependenciasOrigem Dependencia[]  @relation("TarefaOrigem")
+  dependenciasDestino Dependencia[] @relation("TarefaDestino")
+
+  @@index([idPedido])
+  @@index([idSprint])
+  @@index([idResponsavel])
+  @@index([idRelease])
+  @@index([estadoTecnico])
+}
+
+model Dependencia {
+  idDependencia   String      @id @default(uuid()) @map("id_dependencia") @db.Uuid
+  tipoDependencia TipoDependencia @map("tipo_dependencia")
+  idTarefaOrigem  String      @map("id_tarefa_origem") @db.Uuid
+  idTarefaDestino String      @map("id_tarefa_destino") @db.Uuid
+  tarefaOrigem    UserStory   @relation("TarefaOrigem", fields: [idTarefaOrigem], references: [idTarefa], onDelete: Cascade, onUpdate: Cascade)
+  tarefaDestino   UserStory   @relation("TarefaDestino", fields: [idTarefaDestino], references: [idTarefa], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([idTarefaOrigem, idTarefaDestino])
+  @@index([idTarefaDestino])
+}

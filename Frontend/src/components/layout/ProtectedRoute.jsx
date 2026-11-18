@@ -20,9 +20,7 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
     currentUser,
     role,
     roleLabel,
-    login,
     isLoggedOutDueToInactivity,
-    allUsers,
   } = useAuth()
   const { openRoleSwitcher } = useModal()
   const navigate = useNavigate()
@@ -61,7 +59,7 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
               variant="primary"
               className="w-full"
               icon={LogIn}
-              onClick={() => login(currentUser?.email, 'password')}
+              onClick={() => navigate('/login')}
             >
               Iniciar Sessão Novamente
             </Button>
@@ -69,10 +67,7 @@ export function ProtectedRoute({ allowedRoles = [], children }) {
               variant="secondary"
               className="w-full"
               icon={RefreshCw}
-              onClick={() => {
-                login(allUsers.PRODUCT_OWNER.email, 'password')
-                navigate('/')
-              }}
+              onClick={() => navigate('/login')}
             >
               Entrar como Sofia Costa (PO)
             </Button>

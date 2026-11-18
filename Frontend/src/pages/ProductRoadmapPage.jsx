@@ -12,6 +12,7 @@ import {
   Milestone,
 } from 'lucide-react'
 import { useModal } from '../context/ModalContext.jsx'
+import { useData } from '../context/DataContext.jsx'
 
 function useSafeModal() {
   try {
@@ -21,139 +22,29 @@ function useSafeModal() {
   }
 }
 
-const ROADMAP_EPICS = [
-  {
-    id: 'EP01',
-    title: '1. Gestão de pedidos dos clientes',
-    description: 'Submissão, classificação, histórico e deteção de duplicados com busca rápida.',
-    team: 'Frontend & API',
-    leader: { name: 'Sofia Costa', initials: 'SC' },
-    release: 'Release 2026.Q3',
-    quarter: 'Q3 2026',
-    progress: 100,
-    status: 'complete',
-    startMonth: 'Jul 2026',
-    endMonth: 'Set 2026',
-    colSpan: 'col-span-3',
-    colStart: 'col-start-1',
-    dependencies: [],
-  },
-  {
-    id: 'EP02',
-    title: '2. Organização e priorização do Backlog com IA',
-    description: 'Reordenação do Product Backlog, cálculo de esforço e recomendações inteligentes pelo Gemini.',
-    team: 'AI & Backend',
-    leader: { name: 'Sofia Costa', initials: 'SC' },
-    release: 'Release 2026.Q4',
-    quarter: 'Q4 2026',
-    progress: 75,
-    status: 'development',
-    startMonth: 'Out 2026',
-    endMonth: 'Dez 2026',
-    colSpan: 'col-span-4',
-    colStart: 'col-start-3',
-    dependencies: ['EP01'],
-  },
-  {
-    id: 'EP04',
-    title: '4. Planeamento, execução e aceitação dos Sprints',
-    description: 'Sprint 12 em curso, quadro Kanban com 4 colunas, aprovação formal pelo PO e bloqueios.',
-    team: 'Full-Stack Devs',
-    leader: { name: 'Inês Martins', initials: 'IM' },
-    release: 'Release 2026.Q4',
-    quarter: 'Q4 2026',
-    progress: 85,
-    status: 'development',
-    startMonth: 'Out 2026',
-    endMonth: 'Nov 2026',
-    colSpan: 'col-span-3',
-    colStart: 'col-start-4',
-    dependencies: ['EP02'],
-  },
-  {
-    id: 'EP03',
-    title: '3. Definição e rastreabilidade de requisitos',
-    description: 'Matriz bidirecional completa: Pedido → User Story → Critérios → Testes → Git commits.',
-    team: 'QA & Architecture',
-    leader: { name: 'Rafael Silva', initials: 'RS' },
-    release: 'Release 2026.Q4',
-    quarter: 'Q4 2026 – Q1 2027',
-    progress: 45,
-    status: 'development',
-    startMonth: 'Nov 2026',
-    endMonth: 'Jan 2027',
-    colSpan: 'col-span-4',
-    colStart: 'col-start-5',
-    dependencies: ['EP01', 'EP04'],
-  },
-  {
-    id: 'EP05',
-    title: '5. Participação e comunicação com os clientes',
-    description: 'Votação ponderada, menções na equipa via @utilizador e centro de notificações push.',
-    team: 'Frontend Devs',
-    leader: { name: 'Miguel Alves', initials: 'MA' },
-    release: 'Release 2027.Q1',
-    quarter: 'Q1 2027',
-    progress: 15,
-    status: 'analysis',
-    startMonth: 'Jan 2027',
-    endMonth: 'Mar 2027',
-    colSpan: 'col-span-3',
-    colStart: 'col-start-8',
-    dependencies: ['EP02'],
-  },
-  {
-    id: 'EP06',
-    title: '6. Planeamento de entregas e analítica do projeto',
-    description: 'Relatórios consolidados em PDF/CSV, métricas de Lead Time e dashboards para diretores.',
-    team: 'Analytics Team',
-    leader: { name: 'Diogo Ferreira', initials: 'DF' },
-    release: 'Release 2027.Q1',
-    quarter: 'Q1 2027 – Q2 2027',
-    progress: 10,
-    status: 'pending',
-    startMonth: 'Fev 2027',
-    endMonth: 'Mai 2027',
-    colSpan: 'col-span-4',
-    colStart: 'col-start-9',
-    dependencies: ['EP03', 'EP04'],
-  },
-]
-
-const MILESTONES = [
-  {
-    title: 'M1: Alpha Privado',
-    date: '30 Set. 2026',
-    status: 'done',
-    release: 'Release 2026.Q3',
-  },
-  {
-    title: 'M2: Beta Release 2026.Q4',
-    date: '15 Nov. 2026',
-    status: 'active',
-    release: 'Release 2026.Q4',
-    badge: 'Crítico',
-  },
-  {
-    title: 'M3: Lançamento Geral v1.0',
-    date: '15 Jan. 2027',
-    status: 'upcoming',
-    release: 'Release 2027.Q1',
-    badge: 'Marco Principal',
-  },
-]
-
 /**
  * ProductRoadmapPage Component
  * Conforme Figma frame 325:2246 ("Roadmap do produto", 1600x1200)
  */
 export function ProductRoadmapPage() {
   const modalContext = useSafeModal()
+  const dataContext = useData()
 
   const [scale, setScale] = useState('Trimestres')
   const [groupBy, setGroupBy] = useState('Por release')
-  const [selectedRelease, setSelectedRelease] = useState('Release 2026.Q4')
+  const [selectedRelease, setSelectedRelease] = useState('ALL')
   const [notice, setNotice] = useState('')
+  const milestones = (dataContext.roadmap || []).flatMap((release) =>
+    release.marcoCritico
+      ? [{
+          title: release.tituloRelease,
+          status: release.dataFim <= new Date().toISOString() ? 'done' : 'active',
+          date: release.dataFim ? new Date(release.dataFim).toLocaleDateString('pt-PT') : '—',
+          release: release.tituloRelease,
+          badge: release.dataFim <= new Date().toISOString() ? null : 'Marco',
+        }]
+      : []
+  )
 
   const handleExportPDF = () => {
     setNotice('Geração do Roadmap em formato PDF oficial iniciada...')
@@ -161,9 +52,29 @@ export function ProductRoadmapPage() {
   }
 
   const filteredEpics = useMemo(() => {
-    if (selectedRelease === 'ALL') return ROADMAP_EPICS
-    return ROADMAP_EPICS.filter((e) => e.release === selectedRelease || e.release === 'Release 2026.Q4')
-  }, [selectedRelease])
+    const releases = dataContext.roadmap || []
+    const epics = releases.flatMap((release) =>
+      (release.userStories || []).map((story) => {
+        const estado = story.estadoTecnico || 'BACKLOG'
+        const progress = estado === 'CONCLUIDO' ? 100 : estado === 'EM_REVISAO' ? 80 : estado === 'EM_PROGRESSO' ? 55 : estado === 'TODO' ? 20 : 10
+        return {
+          id: story.codigoUs,
+          title: story.titulo,
+          description: release.descricao || `Entrega planeada para ${release.tituloRelease}`,
+          release: release.tituloRelease,
+          team: 'Giro Dev Team',
+          leader: { name: 'Inês Martins', initials: 'IM' },
+          status: estado,
+          progress,
+          startMonth: release.dataInicio ? new Date(release.dataInicio).toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' }) : '—',
+          endMonth: release.dataFim ? new Date(release.dataFim).toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' }) : '—',
+          dependencies: [],
+        }
+      })
+    )
+    if (selectedRelease === 'ALL') return epics
+    return epics.filter((epic) => epic.release === selectedRelease)
+  }, [selectedRelease, dataContext.roadmap])
 
   return (
     <div className="min-h-full bg-bg-page p-6 lg:p-8 space-y-6">
@@ -271,7 +182,7 @@ export function ProductRoadmapPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {MILESTONES.map((m) => (
+          {milestones.map((m) => (
             <div
               key={m.title}
               className={`p-3.5 rounded-lg border flex items-center justify-between text-xs ${

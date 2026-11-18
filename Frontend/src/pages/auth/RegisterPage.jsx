@@ -18,6 +18,7 @@ function useSafeAuth() {
   } catch {
     return {
       login: () => {},
+      register: () => {},
     }
   }
 }
@@ -28,10 +29,10 @@ function useSafeAuth() {
  */
 export function RegisterPage() {
   const navigate = useNavigate()
-  const { login } = useSafeAuth()
+  const { register } = useSafeAuth()
 
-  const [name, setName] = useState('Sofia Costa')
-  const [email, setEmail] = useState('sofia.costa@giro.com')
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [termsAccepted, setTermsAccepted] = useState(false)
@@ -39,7 +40,7 @@ export function RegisterPage() {
   const [error, setError] = useState('')
   const [isSuccess, setIsSuccess] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e?.preventDefault()
 
     if (!name.trim()) {
@@ -66,12 +67,14 @@ export function RegisterPage() {
     setError('')
     setLoading(true)
 
-    setTimeout(() => {
+    try {
+      await register({ name, email, password, role: 'P04' })
       setLoading(false)
       setIsSuccess(true)
-      // Login automático após registo bem-sucedido
-      login(email, password)
-    }, 600)
+    } catch (submitError) {
+      setLoading(false)
+      setError(submitError.message)
+    }
   }
 
   return (

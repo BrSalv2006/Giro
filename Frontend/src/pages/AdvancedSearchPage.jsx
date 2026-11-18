@@ -6,6 +6,7 @@ import {
   SearchIcon,
   CloseIcon,
 } from '../components/common'
+import { getRoleCode, getRoleLabel } from '../context/AuthContext.jsx'
 import { useData } from '../context/DataContext.jsx'
 
 function useSafeData() {
@@ -14,212 +15,6 @@ function useSafeData() {
   } catch {
     return {}
   }
-}
-
-// Conjunto mock alargado de dados para indexação instantânea da pesquisa
-const MOCK_INDEX = {
-  pedidos: [
-    {
-      id: 'PED-01',
-      category: 'pedidos',
-      title: 'Filtro avançado por tags e prioridade na listagem de pedidos',
-      description: 'Permitir aos Product Owners e stakeholders filtrar pedidos combinando múltiplas etiquetas e faixas de votação para agilizar a triagem do backlog.',
-      status: 'analysis',
-      votes: 24,
-      author: 'Sofia Costa',
-      date: '2026-11-04',
-      tags: ['filtros', 'ux', 'backlog'],
-      url: '/pedidos',
-    },
-    {
-      id: 'PED-02',
-      category: 'pedidos',
-      title: 'Exportação de relatórios de sprint em PDF e CSV com cabeçalho oficial',
-      description: 'Possibilidade de gerar relatórios consolidados no fim de cada ciclo de sprint para partilhar com os clientes e diretores executivos.',
-      status: 'development',
-      votes: 18,
-      author: 'Inês Martins',
-      date: '2026-11-02',
-      tags: ['relatorios', 'sprint', 'pdf'],
-      url: '/pedidos',
-    },
-    {
-      id: 'PED-03',
-      category: 'pedidos',
-      title: 'Notificações em tempo real para menções e decisões em comentários',
-      description: 'Disparar alertas visuais imediatos quando um membro da equipa for mencionado via @nome numa discussão de requisito ou história.',
-      status: 'pending',
-      votes: 35,
-      author: 'Miguel Alves',
-      date: '2026-11-06',
-      tags: ['notificacoes', 'tempo-real', 'colaboracao'],
-      url: '/pedidos',
-    },
-    {
-      id: 'PED-04',
-      category: 'pedidos',
-      title: 'Erro ao reordenar colunas e cards no quadro Kanban do Sprint',
-      description: 'Quando dois cartões são arrastados em simultâneo ou em conexões lentas, a ordem do DOM entrava em conflito com o estado local.',
-      status: 'complete',
-      votes: 12,
-      author: 'Rafael Silva',
-      date: '2026-10-28',
-      tags: ['kanban', 'sprint', 'bug-corrigido'],
-      url: '/pedidos',
-    },
-    {
-      id: 'PED-05',
-      category: 'pedidos',
-      title: 'Integração bidirecional com repositórios GitHub e GitLab',
-      description: 'Sincronizar commits e pull requests diretamente com as User Stories associadas para rastreabilidade de código automatizada.',
-      status: 'pending',
-      votes: 41,
-      author: 'Miguel Alves',
-      date: '2026-11-07',
-      tags: ['integracao', 'github', 'devops'],
-      url: '/pedidos',
-    },
-    {
-      id: 'PED-06',
-      category: 'pedidos',
-      title: 'Autenticação SSO com Google Workspace e Azure AD',
-      description: 'Implementar Single Sign-On para facilitar o acesso de equipas corporativas e sincronização com diretórios LDAP.',
-      status: 'rejected',
-      votes: 9,
-      author: 'Diogo Ferreira',
-      date: '2026-10-15',
-      tags: ['seguranca', 'sso', 'autenticacao'],
-      url: '/pedidos',
-    },
-  ],
-  stories: [
-    {
-      id: 'US-42',
-      category: 'stories',
-      title: 'Filtragem multidimensional de pedidos e priorização',
-      description: 'Como Product Owner, pretendo filtrar os pedidos submetidos por estado, etiquetas temáticas e votação ponderada para construir o sprint backlog.',
-      status: 'analysis',
-      points: 8,
-      sprint: 'Sprint 12',
-      assignee: 'Sofia Costa',
-      tags: ['backlog', 'filtros', 'sprint-12'],
-      url: '/sprint',
-    },
-    {
-      id: 'US-31',
-      category: 'stories',
-      title: 'Exportação em ficheiro CSV dos relatórios de velocidade do sprint',
-      description: 'Como Scrum Master, pretendo descarregar as métricas de conclusão de histórias para cálculo de velocidade da equipa.',
-      status: 'development',
-      points: 5,
-      sprint: 'Sprint 12',
-      assignee: 'Rafael Silva',
-      tags: ['relatorios', 'csv', 'metricas'],
-      url: '/sprint',
-    },
-    {
-      id: 'US-12',
-      category: 'stories',
-      title: 'Estruturação do quadro de tarefas com Drag and Drop acessível',
-      description: 'Como Developer, quero mover histórias de utilizador entre colunas com feedback sonoro e compatibilidade total com leitores de ecrã.',
-      status: 'complete',
-      points: 5,
-      sprint: 'Sprint 12',
-      assignee: 'Rafael Silva',
-      tags: ['kanban', 'acessibilidade'],
-      url: '/sprint',
-    },
-    {
-      id: 'US-60',
-      category: 'stories',
-      title: 'Implementação de temporizador de expiração de sessão após 60m',
-      description: 'Como Administrador de Segurança, pretendo garantir conformidade com o RNF-SEG-01 através do encerramento automático após inatividade.',
-      status: 'complete',
-      points: 3,
-      sprint: 'Sprint 11',
-      assignee: 'Rafael Silva',
-      tags: ['seguranca', 'rnf-seg-01'],
-      url: '/sprint',
-    },
-  ],
-  notificacoes: [
-    {
-      id: 'NOT-01',
-      category: 'notificacoes',
-      title: 'Revisão pendente na US-42 por Rafael Silva',
-      description: 'Rafael Silva pediu a sua validação da US-42: Filtragem multidimensional de pedidos.',
-      status: 'pending',
-      timestamp: 'Hoje, 10:31',
-      author: 'Rafael Silva',
-      url: '/notificacoes',
-    },
-    {
-      id: 'NOT-02',
-      category: 'notificacoes',
-      title: 'Bloqueio reportado na exportação CSV',
-      description: 'A exportação CSV está bloqueada por falta de credenciais na API de relatórios.',
-      status: 'development',
-      timestamp: 'Hoje, 09:20',
-      author: 'Inês Martins',
-      url: '/notificacoes',
-    },
-    {
-      id: 'NOT-03',
-      category: 'notificacoes',
-      title: 'Sofia Costa mencionou-o nos comentários do sprint',
-      description: '«Por favor verificar a compatibilidade com a Matriz de Rastreabilidade antes da release.»',
-      status: 'analysis',
-      timestamp: 'Hoje, 09:05',
-      author: 'Sofia Costa',
-      url: '/notificacoes',
-    },
-  ],
-  membros: [
-    {
-      id: 'MEM-01',
-      category: 'membros',
-      name: 'Sofia Costa',
-      role: 'Product Owner',
-      email: 'sofia.costa@giro.com',
-      initials: 'SC',
-      presence: 'online',
-      description: 'Responsável pela definição de visão de produto, backlog prioritization e critérios de aceitação.',
-      url: '/definicoes',
-    },
-    {
-      id: 'MEM-02',
-      category: 'membros',
-      name: 'Inês Martins',
-      role: 'Scrum Master',
-      email: 'ines.martins@giro.com',
-      initials: 'IM',
-      presence: 'online',
-      description: 'Facilitadora do processo Scrum, remoção de bloqueios técnicos e cerimónias de sprint.',
-      url: '/definicoes',
-    },
-    {
-      id: 'MEM-03',
-      category: 'membros',
-      name: 'Rafael Silva',
-      role: 'Developer',
-      email: 'rafael.silva@giro.com',
-      initials: 'RS',
-      presence: 'online',
-      description: 'Desenvolvimento full-stack, implementação de acessibilidade e integração com APIs.',
-      url: '/definicoes',
-    },
-    {
-      id: 'MEM-04',
-      category: 'membros',
-      name: 'Miguel Alves',
-      role: 'Admin',
-      email: 'miguel.alves@giro.com',
-      initials: 'MA',
-      presence: 'busy',
-      description: 'Administrador da organização GIRO, gestão de acessos RBAC, convites e permissões.',
-      url: '/definicoes',
-    },
-  ],
 }
 
 /**
@@ -303,7 +98,7 @@ export function AdvancedSearchPage() {
           tags: p.tags || [],
           url: '/pedidos',
         }))
-      : MOCK_INDEX.pedidos
+      : []
 
     const stories = dataContext.stories?.length
       ? dataContext.stories.map((s) => ({
@@ -318,7 +113,7 @@ export function AdvancedSearchPage() {
           tags: s.tags || [],
           url: '/sprint',
         }))
-      : MOCK_INDEX.stories
+      : []
 
     const notificacoes = dataContext.notifications?.length
       ? dataContext.notifications.map((n) => ({
@@ -331,12 +126,23 @@ export function AdvancedSearchPage() {
           author: n.author?.name || 'Membro',
           url: '/notificacoes',
         }))
-      : MOCK_INDEX.notificacoes
-
-    const membros = MOCK_INDEX.membros
+      : []
+    const membros = (dataContext.users || []).map((user) => {
+      const roleLabel = getRoleLabel(user.role)
+      const roleCode = user.roleCode || getRoleCode(user.role)
+      return {
+        id: user.id,
+        category: 'membros',
+        title: user.name,
+        role: `${roleCode} · ${roleLabel}`,
+        email: user.email,
+        description: `${roleCode} · ${roleLabel}${user.active === false ? ' — Inativo' : ''}`,
+        url: '/definicoes',
+      }
+    })
 
     return [...pedidos, ...stories, ...notificacoes, ...membros]
-  }, [dataContext.pedidos, dataContext.stories, dataContext.notifications])
+  }, [dataContext.pedidos, dataContext.stories, dataContext.notifications, dataContext.users])
 
   // Motor de Pesquisa
   const searchResults = useMemo(() => {

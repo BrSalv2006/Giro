@@ -1,471 +1,628 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Button,
-  Avatar,
-  StatusBadge,
-} from '../components/common'
-import {
-  Send,
-  Paperclip,
+  MessageSquare,
   Hash,
-  Pin,
-  AtSign,
-  FileText,
-  ExternalLink,
+  Send,
+  Calendar,
+  AlertTriangle,
   Users,
-  ShieldCheck,
+  CheckCircle2,
+  Activity,
+  Clock,
 } from 'lucide-react'
+import { Avatar, Button, StatusBadge } from '../components/common'
+import {
+  useAuth,
+  ROLES,
+  MOCK_USERS,
+  getRoleCode,
+  getRoleLabel,
+} from '../context/AuthContext.jsx'
 import { useData } from '../context/DataContext.jsx'
-import { useModal } from '../context/ModalContext.jsx'
+import { cn } from '../utils/cn.js'
 
-function useSafeData() {
-  try {
-    return useData() || {}
-  } catch {
-    return {}
-  }
+function formatShortDate(dateValue) {
+  if (!dateValue) return '—'
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })
 }
 
-function useSafeModal() {
-  try {
-    return useModal() || {}
-  } catch {
-    return {}
-  }
+function formatMessageTime(dateValue) {
+  if (!dateValue) return 'Agora'
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return 'Agora'
+  return date.toLocaleString('pt-PT', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
-const DEFAULT_MEMBERS = [
-  { name: 'Sofia Costa', role: 'Product Owner', initials: 'SC', status: 'online' },
-  { name: 'Inês Martins', role: 'Scrum Master', initials: 'IM', status: 'online' },
-  { name: 'Rafael Silva', role: 'Developer', initials: 'RS', status: 'online' },
-  { name: 'Diogo Ferreira', role: 'Administrador', initials: 'DF', status: 'away' },
-  { name: 'Miguel Alves', role: 'Cliente', initials: 'MA', status: 'offline' },
+const INTERNAL_FALLBACK_MEMBERS = [
+  MOCK_USERS.PRODUCT_OWNER,
+  MOCK_USERS.SCRUM_MASTER,
+  MOCK_USERS.DEVELOPER,
+  MOCK_USERS.ADMIN,
 ]
 
-const DEFAULT_CHANNELS = [
-  { id: 'geral', label: '#geral', desc: 'Canal de anúncios e comunicação geral da equipa Giro', unread: 0 },
-  { id: 'sprint-12', label: '#sprint-12', desc: 'Acompanhamento do sprint corrente e alinhamento diário', unread: 2 },
-  { id: 'bugs-alertas', label: '#bugs-alertas', desc: 'Relato urgente de impedimentos e bugs em produção', unread: 1 },
-  { id: 'decisoes-produto', label: '#decisoes-produto', desc: 'Registo de decisões do PO e aprovação de requisitos', unread: 0 },
-]
-
-const INITIAL_MESSAGES_STORE = {
-  'geral': [
-    {
-      id: 'm1',
-      sender: { name: 'Diogo Ferreira', role: 'Administrador', initials: 'DF' },
-      content: 'Bem-vindos à nova versão da plataforma Giro! O ambiente de testes com RBAC está ativo.',
-      timestamp: 'Hoje às 09:15',
-      reactions: { '👍': 3, '🚀': 2 },
-    },
-    {
-      id: 'm2',
-      sender: { name: 'Sofia Costa', role: 'Product Owner', initials: 'SC' },
-      content: 'Lembrem-se que a priorização dos pedidos para a Sprint 13 encerra esta sexta-feira no painel interativo.',
-      timestamp: 'Hoje às 10:00',
-      reactions: { '❤️': 4 },
-    },
-  ],
-  'sprint-12': [
-    {
-      id: 'm3',
-      sender: { name: 'Inês Martins', role: 'Scrum Master', initials: 'IM' },
-      content: 'Daily standup concluído. Restam 3 dias de Sprint 12 e já temos 21% dos story points concluídos.',
-      timestamp: 'Hoje às 10:45',
-      reactions: { '🎯': 3 },
-    },
-    {
-      id: 'm4',
-      sender: { name: 'Rafael Silva', role: 'Developer', initials: 'RS' },
-      content: 'Aviso de impedimento: Na #US-42 (Voto único RNF-SEG-03), aguardo validação final da chave única na base de dados.',
-      timestamp: 'Hoje às 11:20',
-      taskRef: { id: 'US-42', title: 'Persistir votos únicos de utilizadores por pedido (RNF-SEG-03)', status: 'in_progress', points: 3 },
-      reactions: { '👀': 2 },
-    },
-    {
-      id: 'm5',
-      sender: { name: 'Sofia Costa', role: 'Product Owner', initials: 'SC' },
-      content: 'Obrigada @Rafael Silva. Vou pedir prioridade ao Diogo Ferreira para desbloquear a migração ainda hoje.',
-      timestamp: 'Hoje às 11:35',
-      reactions: { '🙏': 2 },
-    },
-  ],
-  'bugs-alertas': [
-    {
-      id: 'm6',
-      sender: { name: 'Rafael Silva', role: 'Developer', initials: 'RS' },
-      content: 'Aviso: Identificado bloqueio externo temporário na API de testes. A US-31 e US-42 têm dependência registada.',
-      timestamp: 'Hoje às 11:05',
-      taskRef: { id: 'US-31', title: 'Filtrar pedidos por categoria e estado de análise', status: 'in_progress', points: 5 },
-      reactions: { '⚠️': 3 },
-    },
-  ],
-  'decisoes-produto': [
-    {
-      id: 'm7',
-      sender: { name: 'Sofia Costa', role: 'Product Owner', initials: 'SC' },
-      content: 'Decisão oficial: O módulo de PDF e relatórios (RF-12) foi agendado para arranque na Sprint 13.',
-      timestamp: 'Hoje às 09:40',
-      reactions: { '✅': 4 },
-    },
-  ],
-}
-
-/**
- * TeamWorkspacePage Component
- * Conforme Figma frame 325:2488 ("Team Workspace", 1600x1200)
- */
 export function TeamWorkspacePage() {
-  const dataContext = useSafeData()
-  const modalContext = useSafeModal()
+  const navigate = useNavigate()
+  const { currentUser, roleLabel } = useAuth()
+  const {
+    sprints = [],
+    stories = [],
+    sprintStories = [],
+    pedidos = [],
+    notifications = [],
+    users = [],
+    channels = [],
+    messages = {},
+    addMessage,
+  } = useData()
 
-  const [activeChannelId, setActiveChannelId] = useState('sprint-12')
-  const [messages, setMessages] = useState(INITIAL_MESSAGES_STORE)
-  const [inputText, setInputText] = useState('')
-  const [activeReactionToast, setActiveReactionToast] = useState('')
+  const [activeChannelId, setActiveChannelId] = useState('geral')
+  const [messageDraft, setMessageDraft] = useState('')
+  const [messageError, setMessageError] = useState('')
+  const [selectedMemberName, setSelectedMemberName] = useState('ALL')
 
-  const activeChannel = DEFAULT_CHANNELS.find((c) => c.id === activeChannelId) || DEFAULT_CHANNELS[1]
-  const currentMessages = messages[activeChannelId] || []
+  const activeSprint = useMemo(() => {
+    return sprints.find((s) => s.estado === 'ATIVO') || sprints[0] || null
+  }, [sprints])
+
+  const sprintMetrics = useMemo(() => {
+    const activeList = sprintStories.length ? sprintStories : stories.filter((s) => s.sprint)
+    const totalPoints = activeList.reduce((acc, s) => acc + (s.points || 0), 0)
+    const donePoints = activeList
+      .filter((s) => s.status === 'done')
+      .reduce((acc, s) => acc + (s.points || 0), 0)
+    const capacityMax = activeSprint?.capacidadeMaxima || 28
+    const progressPercent = totalPoints ? Math.round((donePoints / totalPoints) * 100) : 0
+    const blockedCount = activeList.filter((s) => Boolean(s.impediment) || s.status === 'blocked').length
+    return {
+      sprintLabel: activeSprint?.numeroSprint ? `Sprint ${activeSprint.numeroSprint}` : 'Sprint 12',
+      dateRange: activeSprint
+        ? `${formatShortDate(activeSprint.dataInicio)} – ${formatShortDate(activeSprint.dataFim)}`
+        : '12–23 out. 2026',
+      totalStories: activeList.length,
+      doneStories: activeList.filter((s) => s.status === 'done').length,
+      totalPoints,
+      donePoints,
+      capacityMax,
+      isOverCapacity: totalPoints > capacityMax,
+      progressPercent,
+      blockedCount,
+    }
+  }, [activeSprint, sprintStories, stories])
+
+  const teamMembers = useMemo(() => {
+    const internalUsers = users.filter((u) => u.role !== ROLES.CLIENT && u.roleCode !== 'P04')
+    const baseList = internalUsers.length > 0
+      ? internalUsers
+      : INTERNAL_FALLBACK_MEMBERS.map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          roleCode: getRoleCode(u.role),
+          active: true,
+        }))
+
+    return baseList.map((member) => {
+      const assignedStories = stories.filter((s) => s.assignee?.name === member.name)
+      const assignedPoints = assignedStories.reduce((sum, s) => sum + (s.points || 0), 0)
+      return {
+        ...member,
+        code: member.roleCode || getRoleCode(member.role),
+        label: getRoleLabel(member.role),
+        assignedStories,
+        assignedPoints,
+      }
+    })
+  }, [users, stories])
+
+  const activeChannel = useMemo(() => {
+    return channels.find((c) => c.id === activeChannelId) || channels[0] || {
+      id: 'geral',
+      name: 'geral',
+      description: 'Canal principal de colaboração da equipa GIRO.',
+    }
+  }, [channels, activeChannelId])
+
+  const channelMessages = useMemo(() => {
+    return messages[activeChannel.id] || []
+  }, [messages, activeChannel.id])
+
+  const recentActivity = useMemo(() => {
+    const storyEvents = stories.slice(0, 3).map((story) => ({
+      id: `act-story-${story.id}`,
+      badge: story.id,
+      title: story.title,
+      meta: `${story.assignee?.name || 'Por atribuir'} · ${story.target}`,
+      status: story.status,
+      route: '/sprint',
+    }))
+    const pedidoEvents = pedidos.slice(0, 2).map((pedido) => ({
+      id: `act-ped-${pedido.id}`,
+      badge: pedido.id,
+      title: pedido.title,
+      meta: `${pedido.author?.name || 'Cliente'} · ${pedido.voteCount || 0} votos`,
+      status: pedido.status,
+      route: '/pedidos',
+    }))
+    const notifEvents = notifications.slice(0, 2).map((notif) => ({
+      id: `act-notif-${notif.id}`,
+      badge: notif.refCode || 'ALERTA',
+      title: notif.title,
+      meta: notif.description,
+      status: notif.read ? 'complete' : 'analysis',
+      route: '/notificacoes',
+    }))
+    return [...storyEvents, ...pedidoEvents, ...notifEvents].slice(0, 6)
+  }, [stories, pedidos, notifications])
+
+  const visibleMemberTasks = useMemo(() => {
+    if (selectedMemberName === 'ALL') {
+      return stories.slice(0, 6)
+    }
+    return stories.filter((s) => s.assignee?.name === selectedMemberName)
+  }, [stories, selectedMemberName])
 
   const handleSendMessage = (e) => {
-    e?.preventDefault()
-    if (!inputText.trim()) return
-
-    const newMsg = {
-      id: `msg-${Date.now()}`,
-      sender: { name: 'Sofia Costa', role: 'Product Owner', initials: 'SC' },
-      content: inputText,
-      timestamp: 'Agora mesmo',
-      reactions: {},
+    e.preventDefault()
+    if (!messageDraft.trim()) {
+      setMessageError('Escreva uma nota ou atualização antes de publicar.')
+      return
     }
-
-    setMessages((prev) => ({
-      ...prev,
-      [activeChannelId]: [...(prev[activeChannelId] || []), newMsg],
-    }))
-
-    if (dataContext.addMessage) {
-      dataContext.addMessage(activeChannelId, inputText)
+    try {
+      addMessage?.(activeChannel.id, messageDraft)
+      setMessageDraft('')
+      setMessageError('')
+    } catch (err) {
+      setMessageError(err.message || 'Não foi possível publicar a mensagem.')
     }
-
-    setInputText('')
-  }
-
-  const handleAddReaction = (msgId, emoji) => {
-    setMessages((prev) => ({
-      ...prev,
-      [activeChannelId]: (prev[activeChannelId] || []).map((m) => {
-        if (m.id !== msgId) return m
-        const currentCount = m.reactions?.[emoji] || 0
-        return {
-          ...m,
-          reactions: {
-            ...m.reactions,
-            [emoji]: currentCount + 1,
-          },
-        }
-      }),
-    }))
-    setActiveReactionToast(`Reagiu com ${emoji}`)
-    setTimeout(() => setActiveReactionToast(''), 2000)
   }
 
   return (
-    <div className="min-h-full bg-bg-page p-6 lg:p-8 space-y-6">
-      {/* 1. Introdução / Cabeçalho (Figma 325:2488) */}
+    <div className="w-full space-y-6">
+      {/* 1. Cabeçalho Superior */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border-subtle pb-5">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-fg-secondary mb-1">
+            <span>Plataforma de Produto</span>
+            <span>/</span>
+            <span className="font-medium text-fg-primary">Giro Dev Team</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl lg:text-3xl font-bold text-fg-primary tracking-tight">
               Team Workspace
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]">
-              <span className="w-2 h-2 rounded-full bg-[#16A34A] animate-pulse" />
-              3 membros online
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]">
+              <Users className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>{teamMembers.length} membros internos</span>
             </span>
           </div>
-          <p className="text-sm text-fg-secondary mt-1">
-            Giro Dev Team · Conversas, decisões e progresso num só lugar.
+          <p className="text-sm text-fg-secondary mt-1 max-w-2xl">
+            Colaboração em tempo real, rituais ágeis e acompanhamento da carga de trabalho do {sprintMetrics.sprintLabel}.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
-            className="text-xs"
-            onClick={() => {
-              if (modalContext.openCreateStoryModal) {
-                modalContext.openCreateStoryModal()
-              }
-            }}
+            className="h-10 px-4 text-xs"
+            onClick={() => navigate('/backlog')}
           >
-            Criar User Story
+            Product Backlog
+          </Button>
+          <Button
+            variant="primary"
+            className="h-10 px-4 text-xs"
+            onClick={() => navigate('/sprint')}
+          >
+            Abrir Quadro do Sprint
           </Button>
         </div>
       </div>
 
-      {activeReactionToast && (
-        <div className="fixed bottom-6 right-6 bg-fg-primary text-white text-xs px-3 py-1.5 rounded-lg shadow-lg animate-fadeIn z-50">
-          {activeReactionToast}
-        </div>
-      )}
+      {/* 2. Resumo do Sprint Ativo & Próximo Ritual Scrum */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Card: Contexto do Sprint */}
+        <section className="lg:col-span-7 bg-bg-surface border border-border-subtle rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="px-2.5 py-1 rounded-md bg-brand-action text-white text-xs font-bold">
+                {sprintMetrics.sprintLabel}
+              </span>
+              <StatusBadge status="development" showDot />
+              <span className="text-xs text-fg-secondary inline-flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>{sprintMetrics.dateRange}</span>
+              </span>
+            </div>
 
-      {/* 2. Layout Principal de 3 Colunas: Canais (Esquerda) + Chat Stream (Centro) + Membros (Direita) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Painel Esquerdo: Canais (3 Colunas) */}
-        <div className="lg:col-span-3 bg-bg-surface border border-border-subtle rounded-xl p-4 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-fg-primary flex items-center gap-1.5">
-              <Hash className="w-4 h-4 text-brand-action" />
-              Canais da Equipa
-            </h2>
-            <span className="text-[11px] text-fg-secondary">4 canais</span>
+            <span className="text-xs font-bold text-brand-action">
+              {sprintMetrics.progressPercent}% concluído
+            </span>
           </div>
 
-          <div className="space-y-1">
-            {DEFAULT_CHANNELS.map((ch) => {
-              const isActive = ch.id === activeChannelId
-              return (
+          <div>
+            <div className="flex items-center justify-between text-xs mb-1.5">
+              <span className="font-medium text-fg-primary">
+                Progresso de Story Points ({sprintMetrics.donePoints} / {sprintMetrics.totalPoints} SP · {sprintMetrics.doneStories} de {sprintMetrics.totalStories} histórias)
+              </span>
+              <span className={cn(
+                'font-semibold',
+                sprintMetrics.isOverCapacity ? 'text-[#DC2626]' : 'text-fg-secondary'
+              )}>
+                Capacidade máx.: {sprintMetrics.capacityMax} SP
+              </span>
+            </div>
+            <div className="w-full bg-bg-page border border-border-subtle/50 h-2.5 rounded-full overflow-hidden">
+              <div
+                className="bg-brand-primary h-full rounded-full transition-all duration-300"
+                style={{ width: `${sprintMetrics.progressPercent}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
+            <div className="flex items-center gap-2">
+              {sprintMetrics.blockedCount > 0 ? (
                 <button
-                  key={ch.id}
-                  onClick={() => setActiveChannelId(ch.id)}
-                  className={`w-full text-left p-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
-                    isActive
-                      ? 'bg-[#FFE3DC] text-brand-action border border-[#F8C1B7]'
-                      : 'text-fg-secondary hover:bg-bg-page hover:text-fg-primary'
-                  }`}
+                  type="button"
+                  onClick={() => setActiveChannelId('bloqueios')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FFE3DC] border border-[#F8C1B7] text-brand-action font-semibold hover:bg-[#FCD2C9] transition-colors cursor-pointer"
                 >
-                  <span className="truncate">{ch.label}</span>
-                  {ch.unread > 0 && !isActive && (
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-brand-action text-white">
-                      {ch.unread}
-                    </span>
-                  )}
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>{sprintMetrics.blockedCount} bloqueio(s) ativo(s) — ver #bloqueios</span>
                 </button>
-              )
-            })}
-          </div>
-
-          {/* Secção de Ficheiros Partilhados no Workspace */}
-          <div className="pt-3 border-t border-border-subtle space-y-2">
-            <h3 className="text-[11px] font-bold uppercase tracking-wider text-fg-secondary">
-              Ficheiros Recentes
-            </h3>
-            <div className="space-y-1 text-xs">
-              <div className="p-2 rounded bg-bg-page hover:bg-border-subtle/40 flex items-center gap-2 cursor-pointer transition-colors">
-                <FileText className="w-3.5 h-3.5 text-brand-action shrink-0" />
-                <span className="truncate text-fg-primary">Ata_Sprint12_Planeamento.pdf</span>
-              </div>
-              <div className="p-2 rounded bg-bg-page hover:bg-border-subtle/40 flex items-center gap-2 cursor-pointer transition-colors">
-                <FileText className="w-3.5 h-3.5 text-[#0284C7] shrink-0" />
-                <span className="truncate text-fg-primary">Tokens_Figma_v1.4.json</span>
-              </div>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#DCFCE7] border border-[#BBF7D0] text-[#166534] font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Fluxo sem bloqueios ativos</span>
+                </span>
+              )}
             </div>
-          </div>
-        </div>
 
-        {/* Painel Central: Chat Stream do Canal Ativo (6 Colunas) */}
-        <div className="lg:col-span-6 bg-bg-surface border border-border-subtle rounded-xl shadow-xs flex flex-col h-[680px]">
-          {/* Cabeçalho do Canal Ativo */}
-          <div className="p-4 border-b border-border-subtle flex items-center justify-between bg-bg-surface rounded-t-xl">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-fg-primary">{activeChannel.label}</h2>
-                <span className="text-[11px] text-fg-secondary">• {activeChannel.desc}</span>
-              </div>
+            <span className="text-fg-secondary">
+              Sessão atual: <strong className="text-fg-primary">{currentUser?.name || 'Sofia Costa'}</strong> ({roleLabel})
+            </span>
+          </div>
+        </section>
+
+        {/* Card: Próximo Ritual Scrum */}
+        <section className="lg:col-span-5 bg-gradient-to-br from-[#FFE3DC]/65 via-white to-[#EDE9FE]/55 border border-[#F8C1B7] rounded-2xl p-5 shadow-xs flex flex-col justify-between space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-brand-action">
+                Próximo Ritual Scrum
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-[#F8C1B7] text-[11px] font-semibold text-fg-primary">
+                <Clock className="w-3 h-3 text-brand-primary" aria-hidden="true" />
+                Hoje · 09:30
+              </span>
             </div>
-            <span className="text-xs text-brand-action font-semibold">Giro Dev Team</span>
-          </div>
 
-          {/* Banner de Mensagem Fixada */}
-          <div className="bg-[#FEF3C7]/40 border-b border-[#FDE68A] p-2.5 px-4 flex items-center gap-2 text-xs text-[#7A4D00]">
-            <Pin className="w-3.5 h-3.5 shrink-0 text-[#F59E0B]" />
-            <span className="font-semibold">Fixado:</span>
-            <span className="truncate">Meta Sprint 12: Concluir RNF-SEG-03 e fechar os 2 bloqueios de backend.</span>
-          </div>
-
-          {/* Fluxo de Mensagens */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-4">
-            {currentMessages.map((msg) => (
-              <div key={msg.id} className="flex items-start gap-3 group">
-                <Avatar
-                  name={msg.sender?.name}
-                  initials={msg.sender?.initials}
-                  size={32}
-                  className="mt-0.5"
-                />
-
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-fg-primary">
-                      {msg.sender?.name}
-                    </span>
-                    <span className="text-[10px] text-fg-secondary font-medium px-1.5 py-0.2 rounded bg-bg-page">
-                      {msg.sender?.role}
-                    </span>
-                    <span className="text-[11px] text-fg-secondary">
-                      {msg.timestamp}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-fg-primary leading-relaxed">
-                    {msg.content}
-                  </p>
-
-                  {/* Pré-visualização de Cartão de Tarefa se mencionada */}
-                  {msg.taskRef && (
-                    <div className="mt-2 p-2.5 rounded-lg border border-[#F8C1B7] bg-[#FFE3DC]/40 text-xs flex items-center justify-between max-w-md">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-brand-action">{msg.taskRef.id}</span>
-                          <span className="font-semibold text-fg-primary">{msg.taskRef.title}</span>
-                        </div>
-                        <div className="text-[11px] text-fg-secondary flex items-center gap-2">
-                          <span>{msg.taskRef.points} SP</span>
-                          <span>•</span>
-                          <StatusBadge status={msg.taskRef.status} />
-                        </div>
-                      </div>
-                      <ExternalLink className="w-4 h-4 text-brand-action shrink-0 ml-2" />
-                    </div>
-                  )}
-
-                  {/* Reações e Botão de Reagir */}
-                  <div className="flex items-center gap-1.5 pt-1">
-                    {Object.entries(msg.reactions || {}).map(([emoji, count]) => (
-                      <button
-                        key={emoji}
-                        onClick={() => handleAddReaction(msg.id, emoji)}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-bg-page border border-border-subtle hover:bg-border-subtle/40 transition-colors"
-                      >
-                        <span>{emoji}</span>
-                        <span className="font-bold text-fg-secondary">{count}</span>
-                      </button>
-                    ))}
-
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ml-1">
-                      <button
-                        onClick={() => handleAddReaction(msg.id, '👍')}
-                        className="p-1 hover:bg-bg-page rounded text-xs"
-                        title="Polegar"
-                      >
-                        👍
-                      </button>
-                      <button
-                        onClick={() => handleAddReaction(msg.id, '🚀')}
-                        className="p-1 hover:bg-bg-page rounded text-xs"
-                        title="Foguete"
-                      >
-                        🚀
-                      </button>
-                      <button
-                        onClick={() => handleAddReaction(msg.id, '❤️')}
-                        className="p-1 hover:bg-bg-page rounded text-xs"
-                        title="Coração"
-                      >
-                        ❤️
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Campo de Entrada de Mensagem */}
-          <form
-            onSubmit={handleSendMessage}
-            className="p-3 border-t border-border-subtle bg-bg-surface rounded-b-xl flex items-center gap-2"
-          >
-            <button
-              type="button"
-              className="p-2 text-fg-secondary hover:text-fg-primary rounded-lg hover:bg-bg-page"
-              title="Anexar ficheiro"
-            >
-              <Paperclip className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              className="p-2 text-fg-secondary hover:text-fg-primary rounded-lg hover:bg-bg-page"
-              title="Mencionar membro (@)"
-              onClick={() => setInputText((prev) => `${prev} @`)}
-            >
-              <AtSign className="w-4 h-4" />
-            </button>
-
-            <input
-              type="text"
-              placeholder={`Escreva uma mensagem em ${activeChannel.label}...`}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              className="flex-1 bg-bg-page border border-border-subtle focus:border-brand-action focus:ring-1 focus:ring-brand-action rounded-lg px-3 py-2 text-xs text-fg-primary outline-none"
-            />
-
-            <Button
-              type="submit"
-              variant="primary"
-              className="px-3.5 py-2 h-9 text-xs"
-              icon={<Send className="w-3.5 h-3.5" />}
-            >
-              Enviar
-            </Button>
-          </form>
-        </div>
-
-        {/* Painel Direito: Membros da Equipa e Presença (3 Colunas) */}
-        <div className="lg:col-span-3 bg-bg-surface border border-border-subtle rounded-xl p-4 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-border-subtle pb-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-fg-primary flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-brand-action" />
-              Membros da Equipa
+            <h2 className="text-lg font-bold text-fg-primary">
+              Daily Scrum · Sincronização da Equipa
             </h2>
-            <span className="text-[11px] font-semibold text-[#16A34A]">3 online</span>
+            <p className="text-xs text-fg-secondary leading-relaxed">
+              Facilitada por <strong>Inês Martins (P02 · Scrum Master)</strong>. Alinhamento sobre conclusão da US-31, revisão de concorrência da US-42 e carga para o fecho do {sprintMetrics.sprintLabel}.
+            </p>
           </div>
 
-          <div className="space-y-3">
-            {DEFAULT_MEMBERS.map((member) => (
-              <div key={member.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2.5">
-                  <div className="relative">
-                    <Avatar
-                      name={member.name}
-                      initials={member.initials}
-                      size={32}
-                    />
-                    <span
-                      className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${
-                        member.status === 'online'
-                          ? 'bg-[#16A34A]'
-                          : member.status === 'away'
-                          ? 'bg-[#F59E0B]'
-                          : 'bg-[#9BA2AD]'
-                      }`}
-                      title={member.status}
-                    />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-fg-primary">{member.name}</div>
-                    <div className="text-[11px] text-fg-secondary">{member.role}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between pt-2 border-t border-[#F8C1B7]/60 text-xs">
+            <span className="text-fg-secondary">Duração prevista: 15 min</span>
+            <button
+              type="button"
+              onClick={() => setActiveChannelId('sprint-planning')}
+              className="font-semibold text-brand-action hover:underline cursor-pointer"
+            >
+              Notas em #sprint-planning →
+            </button>
           </div>
+        </section>
+      </div>
 
-          {/* Dica de Acessibilidade e RBAC */}
-          <div className="pt-3 border-t border-border-subtle">
-            <div className="p-3 bg-bg-page rounded-lg border border-border-subtle text-[11px] text-fg-secondary space-y-1">
-              <div className="flex items-center gap-1 font-bold text-fg-primary">
-                <ShieldCheck className="w-3.5 h-3.5 text-brand-action" />
-                <span>Auditoria & Segurança (RNF-SEG-02)</span>
+      {/* 3. Área Principal: Canais + Feed (8 cols) e Equipa + Carga (4 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Coluna Esquerda: Canais de Colaboração e Atividade Recente */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Painel de Canais e Mensagens */}
+          <section className="bg-bg-surface border border-border-subtle rounded-2xl shadow-xs overflow-hidden">
+            {/* Barra de Canais */}
+            <div className="px-5 py-4 border-b border-border-subtle bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-brand-primary" aria-hidden="true" />
+                <h2 className="text-base font-bold text-fg-primary">
+                  Canais da Equipa
+                </h2>
               </div>
-              <p>
-                As mensagens em canais oficiais mantêm registo de log auditável com carimbo temporal.
-              </p>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                {channels.map((channel) => {
+                  const isActive = activeChannel.id === channel.id
+                  const count = (messages[channel.id] || []).length
+                  return (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveChannelId(channel.id)
+                        setMessageError('')
+                      }}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer',
+                        isActive
+                          ? 'bg-[#FFE3DC] text-brand-action font-semibold border border-[#F8C1B7]'
+                          : 'bg-bg-page text-fg-secondary hover:text-fg-primary border border-transparent'
+                      )}
+                    >
+                      <Hash className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>{channel.name}</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/80 text-fg-primary">
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-          </div>
+
+            {/* Descrição do Canal */}
+            <div className="px-5 py-2.5 bg-bg-page/70 border-b border-border-subtle text-xs text-fg-secondary flex items-center justify-between gap-2">
+              <span>
+                <strong className="text-fg-primary">#{activeChannel.name}</strong> — {activeChannel.description}
+              </span>
+              <span className="text-[11px] font-mono shrink-0">Sessão local</span>
+            </div>
+
+            {/* Lista de Mensagens */}
+            <div className="p-5 space-y-3 max-h-[360px] overflow-y-auto bg-white">
+              {channelMessages.length === 0 ? (
+                <div className="p-8 text-center rounded-xl border border-dashed border-border-subtle bg-bg-page/40">
+                  <p className="text-sm font-semibold text-fg-primary">
+                    Ainda sem notas em #{activeChannel.name}
+                  </p>
+                  <p className="text-xs text-fg-secondary mt-1">
+                    Partilhe uma atualização, decisão técnica ou pedido de apoio com a equipa.
+                  </p>
+                </div>
+              ) : (
+                channelMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className="p-3.5 rounded-xl border border-border-subtle bg-bg-page/45 flex items-start gap-3"
+                  >
+                    <Avatar
+                      name={msg.author?.name || 'Membro'}
+                      size={32}
+                      status="online"
+                    />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-fg-primary">
+                            {msg.author?.name}
+                          </span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#FFE3DC] text-brand-action">
+                            {msg.author?.roleLabel || getRoleLabel(msg.author?.role)}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-fg-secondary">
+                          {formatMessageTime(msg.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-fg-primary leading-relaxed break-words">
+                        {msg.content}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Caixa de Envio */}
+            <form
+              onSubmit={handleSendMessage}
+              className="p-4 bg-bg-page border-t border-border-subtle space-y-2"
+            >
+              {messageError && (
+                <p role="alert" className="text-xs font-medium text-feedback-errorFg">
+                  {messageError}
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="text"
+                  value={messageDraft}
+                  onChange={(e) => {
+                    setMessageDraft(e.target.value)
+                    if (messageError) setMessageError('')
+                  }}
+                  placeholder={`Enviar nota para #${activeChannel.name}...`}
+                  aria-label={`Mensagem para #${activeChannel.name}`}
+                  className="flex-1 h-11 rounded-lg border border-border-subtle bg-white px-3.5 text-sm text-fg-primary placeholder:text-fg-disabled-muted focus:outline-none focus:ring-2 focus:ring-border-focusRing"
+                />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="h-11 px-5 text-xs font-semibold shrink-0"
+                  icon={<Send className="w-3.5 h-3.5" />}
+                >
+                  Publicar
+                </Button>
+              </div>
+            </form>
+          </section>
+
+          {/* Feed de Atividade ao Vivo do Sprint */}
+          <section className="bg-bg-surface border border-border-subtle rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-brand-primary" aria-hidden="true" />
+                <h2 className="text-base font-bold text-fg-primary">
+                  Atividade Recente do Sprint e Pedidos
+                </h2>
+              </div>
+              <span className="text-xs text-fg-secondary">
+                {stories.length} stories · {pedidos.length} pedidos
+              </span>
+            </div>
+
+            {recentActivity.length === 0 ? (
+              <p className="text-xs text-fg-secondary py-4 text-center">
+                Nenhuma atividade recente registada.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {recentActivity.map((act) => (
+                  <button
+                    key={act.id}
+                    type="button"
+                    onClick={() => navigate(act.route)}
+                    className="p-3.5 rounded-xl border border-border-subtle bg-bg-page/50 hover:bg-[#FFE3DC]/25 hover:border-[#F8C1B7] transition-all text-left space-y-1.5 cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-white border border-border-subtle text-brand-action">
+                        {act.badge}
+                      </span>
+                      <StatusBadge status={act.status} />
+                    </div>
+                    <p className="text-xs font-semibold text-fg-primary line-clamp-1">
+                      {act.title}
+                    </p>
+                    <p className="text-[11px] text-fg-secondary line-clamp-1">
+                      {act.meta}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
+
+        {/* Coluna Direita: Membros da Equipa e Carga do Sprint */}
+        <aside className="lg:col-span-4 space-y-5">
+          <section className="bg-bg-surface border border-border-subtle rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-border-subtle pb-3">
+              <div>
+                <h2 className="text-base font-bold text-fg-primary">
+                  Equipa &amp; Carga no Sprint
+                </h2>
+                <p className="text-xs text-fg-secondary mt-0.5">
+                  Selecione um membro para filtrar as suas tarefas
+                </p>
+              </div>
+              {selectedMemberName !== 'ALL' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMemberName('ALL')}
+                  className="text-xs font-semibold text-brand-action hover:underline cursor-pointer"
+                >
+                  Ver todos
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-2.5">
+              {teamMembers.map((member) => {
+                const isSelected = selectedMemberName === member.name
+                return (
+                  <button
+                    key={member.id || member.name}
+                    type="button"
+                    onClick={() =>
+                      setSelectedMemberName(isSelected ? 'ALL' : member.name)
+                    }
+                    className={cn(
+                      'w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between gap-3 cursor-pointer',
+                      isSelected
+                        ? 'border-brand-primary bg-[#FFE3DC]/45 ring-1 ring-brand-primary'
+                        : 'border-border-subtle bg-white hover:bg-bg-page'
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar
+                        name={member.name}
+                        size={36}
+                        status={member.active === false ? 'busy' : 'online'}
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-bold text-fg-primary truncate">
+                            {member.name}
+                          </span>
+                          <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-bg-page border border-border-subtle text-fg-secondary">
+                            {member.code}
+                          </span>
+                        </div>
+                        <p className="text-xs text-fg-secondary truncate">
+                          {member.label}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="text-xs font-bold text-brand-action">
+                        {member.assignedPoints} SP
+                      </div>
+                      <div className="text-[11px] text-fg-secondary">
+                        {member.assignedStories.length} tarefa(s)
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          {/* Lista de Tarefas Atribuídas */}
+          <section className="bg-bg-surface border border-border-subtle rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-fg-primary">
+                {selectedMemberName === 'ALL'
+                  ? 'Tarefas Ativas do Sprint'
+                  : `Tarefas de ${selectedMemberName}`}
+              </h3>
+              <span className="text-xs text-fg-secondary font-medium">
+                {visibleMemberTasks.length} item(ns)
+              </span>
+            </div>
+
+            {visibleMemberTasks.length === 0 ? (
+              <p className="text-xs text-fg-secondary bg-bg-page p-3 rounded-lg border border-border-subtle">
+                Nenhuma User Story atribuída neste momento.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {visibleMemberTasks.map((story) => (
+                  <div
+                    key={story.id}
+                    className="p-3 rounded-xl border border-border-subtle bg-bg-page/55 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] font-bold text-brand-action bg-[#FFE3DC] px-1.5 py-0.5 rounded">
+                        {story.id}
+                      </span>
+                      <StatusBadge status={story.status} />
+                    </div>
+                    <p className="text-xs font-semibold text-fg-primary leading-snug">
+                      {story.title}
+                    </p>
+                    <div className="flex items-center justify-between text-[11px] text-fg-secondary">
+                      <span>{story.assignee?.name || 'Por atribuir'}</span>
+                      <span>{story.points ? `${story.points} SP` : 'Por estimar'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </aside>
       </div>
     </div>
   )

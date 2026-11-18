@@ -47,12 +47,12 @@ export function OverviewPage() {
   const [exportNotice, setExportNotice] = useState('')
 
   // Cálculos dinâmicos com fallback
-  const totalPedidos = pedidos.length > 0 ? pedidos.length + 118 : 128
-  const sprintPointsTotal = sprintStories.reduce((acc, s) => acc + (s.points || 0), 0) || 24
+  const totalPedidos = pedidos.length
+  const sprintPointsTotal = sprintStories.reduce((acc, s) => acc + (s.points || 0), 0)
   const sprintPointsDone = sprintStories
     .filter((s) => s.status === 'done')
-    .reduce((acc, s) => acc + (s.points || 0), 0) || 5
-  const sprintPercent = Math.round((sprintPointsDone / (sprintPointsTotal || 1)) * 100) || 21
+    .reduce((acc, s) => acc + (s.points || 0), 0)
+  const sprintPercent = sprintPointsTotal ? Math.round((sprintPointsDone / sprintPointsTotal) * 100) : 0
 
   const handleExport = (format) => {
     setExportNotice(`Exportação em formato ${format} gerada com sucesso!`)

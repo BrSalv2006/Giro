@@ -35,93 +35,6 @@ function useSafeModal() {
   }
 }
 
-const DEFAULT_SPRINT_STORIES = [
-  {
-    id: 'US-55',
-    title: 'Sistema de notificações visuais para menções de equipa',
-    description: 'Como utilizador, quero receber alerta com indicador vermelho no sino sempre que alguém me mencionar, para responder prontamente.',
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'todo',
-    priority: 'Média',
-    points: 8,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    impediment: null,
-  },
-  {
-    id: 'US-71',
-    title: 'Associação direta de pedidos a novas user stories',
-    description: 'Como PO, quero poder converter ou associar um pedido da comunidade a uma história no momento da sua criação.',
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'todo',
-    priority: 'Média',
-    points: 5,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    impediment: null,
-  },
-  {
-    id: 'US-31',
-    title: 'Filtrar pedidos por categoria e estado de análise',
-    description: 'Como Product Owner, quero filtrar os pedidos por categoria e estado, para acelerar a triagem e priorização no backlog do produto.',
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'in_progress',
-    priority: 'Alta',
-    points: 5,
-    assignee: { name: 'Sofia Costa', initials: 'SC', role: 'Product Owner' },
-    impediment: 'Bloqueado por dependência da API de busca facetada.',
-  },
-  {
-    id: 'US-42',
-    title: 'Persistir votos únicos de utilizadores por pedido (RNF-SEG-03)',
-    description: 'Como developer, quero restringir a votação a no máximo 1 voto por utilizador autenticado, para garantir a integridade da priorização.',
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'in_progress',
-    priority: 'Alta',
-    points: 3,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    impediment: 'Bloqueado por aprovação técnica da migração de base de dados e índices únicos.',
-  },
-  {
-    id: 'US-48',
-    title: 'Visualizar burndown chart e progresso da Sprint 12',
-    description: 'Como Scrum Master, quero acompanhar a evolução diária dos story points concluídos, para prever desvios na meta do ciclo.',
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'review',
-    priority: 'Média',
-    points: 5,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    impediment: null,
-  },
-  {
-    id: 'US-24',
-    title: 'Exportar pedidos e atas de sprint para documento PDF',
-    description: 'Como utilizador, quero transferir a lista de pedidos aprovados para PDF formatado, para relatórios com stakeholders externos.',
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'done',
-    priority: 'Baixa',
-    points: 3,
-    assignee: { name: 'Inês Martins', initials: 'IM', role: 'Scrum Master' },
-    impediment: null,
-  },
-  {
-    id: 'US-60',
-    title: 'Temporizador de inatividade de 60 minutos (RNF-SEG-01)',
-    description: 'Como developer, quero desconectar automaticamente sessões inativas após 60 minutos de ausência, para cumprir os requisitos de segurança.',
-    target: 'Sprint 12',
-    sprint: 'sprint-12',
-    status: 'done',
-    priority: 'Alta',
-    points: 2,
-    assignee: { name: 'Rafael Silva', initials: 'RS', role: 'Developer' },
-    impediment: null,
-  },
-]
-
 const COLUMNS = [
   { id: 'todo', label: 'A Fazer', color: 'border-t-[#707987]', badgeColor: 'bg-[#E4E5EA] text-[#292D35]' },
   { id: 'in_progress', label: 'Em Desenvolvimento', color: 'border-t-[#8B5CF6]', badgeColor: 'bg-[#EDE9FE] text-[#5B21B6]' },
@@ -137,40 +50,42 @@ export function SprintKanbanPage() {
   const dataContext = useSafeData()
   const modalContext = useSafeModal()
 
-  const liveStories = dataContext.sprintStories?.length > 0
-    ? dataContext.sprintStories
-    : dataContext.stories?.filter((s) => s.sprint === 'sprint-12')?.length > 0
-    ? dataContext.stories.filter((s) => s.sprint === 'sprint-12')
-    : DEFAULT_SPRINT_STORIES
+  const localStories = useMemo(() => {
+    if (dataContext.sprintStories?.length > 0) return dataContext.sprintStories
+    return (dataContext.stories || []).filter((s) => s.sprint === 'sprint-12')
+  }, [dataContext.sprintStories, dataContext.stories])
 
-  const [localStories, setLocalStories] = useState(liveStories)
   const [selectedAssignee, setSelectedAssignee] = useState('ALL')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedStoryDetail, setSelectedStoryDetail] = useState(null)
   const [alertNotice, setAlertNotice] = useState('')
 
   // Mover story entre colunas
-  const handleMoveStatus = (storyId, direction) => {
+  const handleMoveStatus = async (storyId, direction) => {
     const colOrder = ['todo', 'in_progress', 'review', 'done']
-    setLocalStories((prev) =>
-      prev.map((s) => {
-        if (s.id !== storyId) return s
-        const currentIndex = colOrder.indexOf(s.status)
-        const nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1
-        if (nextIndex < 0 || nextIndex >= colOrder.length) return s
-        const nextStatus = colOrder[nextIndex]
+    const story = localStories.find((s) => s.id === storyId)
+    if (!story) return
+    const currentIndex = colOrder.indexOf(story.status)
+    const nextIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1
+    if (nextIndex < 0 || nextIndex >= colOrder.length) return
+    const nextStatus = colOrder[nextIndex]
 
-        if (dataContext.moveStory) {
-          dataContext.moveStory(storyId, nextStatus)
-        }
-
-        setAlertNotice(`✓ ${s.id} movido para "${COLUMNS.find((c) => c.id === nextStatus)?.label}".`)
-        setTimeout(() => setAlertNotice(''), 3000)
-
-        return { ...s, status: nextStatus }
-      })
-    )
+    try {
+      if (dataContext.moveStory) {
+        await dataContext.moveStory(storyId, nextStatus)
+      }
+      setAlertNotice(`✓ ${story.id} movido para "${COLUMNS.find((c) => c.id === nextStatus)?.label}".`)
+      setTimeout(() => setAlertNotice(''), 3000)
+    } catch (moveError) {
+      setAlertNotice(moveError.message || 'Não foi possível mover a User Story.')
+      setTimeout(() => setAlertNotice(''), 3500)
+    }
   }
+
+  const blockedStories = useMemo(
+    () => localStories.filter((s) => Boolean(s.impediment) || s.status === 'blocked'),
+    [localStories]
+  )
 
   // Cálculos do Sprint
   const totalPoints = localStories.reduce((acc, s) => acc + (s.points || 0), 0)
@@ -283,18 +198,23 @@ export function SprintKanbanPage() {
           {/* Alerta de Impedimentos */}
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#FFE3DC] border border-[#F8C1B7] text-xs text-brand-action font-semibold">
             <AlertTriangle className="w-4 h-4 shrink-0 text-brand-action" />
-            <span>2 bloqueios ativos: US-31 e US-42 requerem atenção do Scrum Master</span>
+            <span>
+              {blockedStories.length > 0
+                ? `${blockedStories.length} bloqueio(s) ativo(s): ${blockedStories.map((b) => b.id).join(' e ')} requerem atenção do Scrum Master`
+                : 'Sem bloqueios ativos neste Sprint'}
+            </span>
           </div>
 
           {/* Filtros de Quadro */}
           <div className="flex items-center gap-2">
-            <div className="w-44">
+            <div className="w-48">
               <Select
                 options={[
                   { value: 'ALL', label: 'Todos os responsáveis' },
                   { value: 'Sofia Costa', label: 'Sofia Costa (PO)' },
-                  { value: 'Rafael Silva', label: 'Rafael Silva (Dev)' },
+                  { value: 'Rafael Silva', label: 'Rafael Silva (Programador)' },
                   { value: 'Inês Martins', label: 'Inês Martins (SM)' },
+                  { value: 'Diogo Ferreira', label: 'Diogo Ferreira (Admin)' },
                 ]}
                 value={selectedAssignee}
                 onChange={(val) => setSelectedAssignee(val)}

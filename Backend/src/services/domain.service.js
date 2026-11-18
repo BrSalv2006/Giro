@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sanitizeBody, sanitizeText } from '../security/sanitize.js';
 import { AIAdapter } from '../ai/adapter.js';
+import { normalizeForSearch, findSimilarPedidos } from './pedido-similarity.js';
 
 const text = z.string().trim().min(1).max(5000);
 const estadoPedidoEnum = z.enum(['SUBMETIDO', 'EM_ANALISE', 'APROVADO', 'PLANEADO', 'EM_DESENVOLVIMENTO', 'CONCLUIDO', 'REJEITADO']);
@@ -106,59 +107,6 @@ async function listAll(repo, model) {
   return items;
 }
 
-function normalizeForSearch(value) {
-  return String(value ?? '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function buildTrigrams(value) {
-  const grams = new Set();
-  if (value.length < 3) return grams;
-  for (let i = 0; i <= value.length - 3; i += 1) {
-    grams.add(value.slice(i, i + 3));
-  }
-  return grams;
-}
-
-function trigramDice(a, b) {
-  if (!a.size || !b.size) return 0;
-  let intersection = 0;
-  for (const gram of a) {
-    if (b.has(gram)) intersection += 1;
-  }
-  return (2 * intersection) / (a.size + b.size);
-}
-
-function scorePedidoSimilarity(queryNorm, pedido) {
-  const titleNorm = normalizeForSearch(pedido.titulo);
-  const fullNorm = normalizeForSearch(`${pedido.titulo ?? ''} ${pedido.descricao ?? ''}`);
-  if (!fullNorm) return { similarity: 0, isSubstring: false };
-
-  const isSubstring = fullNorm.includes(queryNorm);
-  const qTrigrams = buildTrigrams(queryNorm);
-  const tTrigrams = buildTrigrams(titleNorm);
-  const fTrigrams = buildTrigrams(fullNorm);
-
-  const diceTitle = trigramDice(qTrigrams, tTrigrams);
-  const diceFull = trigramDice(qTrigrams, fTrigrams);
-  let matches = 0;
-  for (const gram of qTrigrams) {
-    if (fTrigrams.has(gram)) matches += 1;
-  }
-  const trigramCoverage = qTrigrams.size ? matches / qTrigrams.size : 0;
-
-  const qTokens = queryNorm.split(' ').filter((t) => t.length >= 2);
-  const fTokens = fullNorm.split(' ').filter((t) => t.length >= 2);
-  const matchedTokens = qTokens.filter((qt) => fTokens.some((ft) => ft === qt || ft.startsWith(qt) || qt.startsWith(ft))).length;
-  const tokenScore = qTokens.length ? matchedTokens / qTokens.length : 0;
-
-  const combined = Math.min(1, Math.max(diceTitle, diceFull, 0.55 * trigramCoverage + 0.45 * tokenScore, isSubstring ? 0.5 : 0));
-  return { similarity: combined, isSubstring };
-}
 
 function resolveActorId(actor, fallbackId) {
   if (typeof actor === 'string' && actor.trim()) return actor;
@@ -273,20 +221,8 @@ export function domainService(repo, aiAdapter = new AIAdapter()) {
       if (queryNorm.length < 3) return { matches: [], query };
 
       const pedidos = await listAll(repo, 'Pedido');
-      const matches = pedidos
-        .map((pedido) => {
-          const { similarity, isSubstring } = scorePedidoSimilarity(queryNorm, pedido);
-          return { pedido, similarity, isSubstring };
-        })
-        .filter(({ similarity, isSubstring }) => similarity > 0.15 || isSubstring)
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, 10)
-        .map(({ pedido, similarity }) => ({
-          ...pedido,
-          similarity: Number(similarity.toFixed(3)),
-        }));
+      return { matches: findSimilarPedidos(queryNorm, pedidos), query };
 
-      return { matches, query };
     },
 
     updatePedido: async (pedidoId, body, user) => {
